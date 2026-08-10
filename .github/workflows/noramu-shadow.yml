@@ -9,7 +9,7 @@ on:
       - "requirements.txt"
       - ".github/workflows/noramu-shadow.yml"
   schedule:
-    # Four research snapshots on US trading weekdays.
+    # Five research snapshots on US trading weekdays.
     # UTC schedule intentionally spans EDT/EST without timezone secrets.
     - cron: "45 14,16,18,20,22 * * 1-5"
 
@@ -63,18 +63,6 @@ jobs:
           echo "--- summary ---"
           cat latest_output/shadow_run_summary.json
 
-      - name: Persist prospective state and latest result
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state latest_output
-          if git diff --cached --quiet; then
-            echo "No state/output changes to commit."
-          else
-            git commit -m "shadow: update prospective state [skip ci]"
-            git push
-          fi
-
       - name: Upload run artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,3 +73,39 @@ jobs:
             state/
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Persist prospective state and latest result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state latest_output
+
+          if git diff --cached --quiet; then
+            echo "No state/output changes to commit."
+            exit 0
+          fi
+
+          git commit -m "shadow: update prospective state [skip ci]"
+
+          # The user or another automation may update main while the 147-ticker
+          # scan is running. Rebase the generated state commit onto the newest
+          # main and retry instead of failing with a non-fast-forward push.
+          for attempt in 1 2 3 4; do
+            echo "Persist attempt ${attempt}/4"
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "[ERROR] Could not rebase the generated state commit."
+              exit 1
+            fi
+
+            if git push origin HEAD:main; then
+              echo "Prospective state persisted successfully."
+              exit 0
+            fi
+
+            sleep $((attempt * 2))
+          done
+
+          echo "[ERROR] Could not persist state after 4 push attempts."
+          exit 1
