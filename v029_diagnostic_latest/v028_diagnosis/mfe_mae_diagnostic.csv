@@ -1,0 +1,5 @@
+﻿test,trades
+losers_mfe_ge_1R,0
+losers_mfe_ge_0p5R,10
+winners_mae_le_minus_0p8R,2
+all_mfe_ge_2R,10
