@@ -1,0 +1,41 @@
+name: Bootstrap Noramu v0.24 bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-unpack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Unpack exact GitHub-ready bundle
+        run: |
+          rm -rf /tmp/noramu-unpack
+          mkdir -p /tmp/noramu-unpack
+          unzip -q noramu_github_ready.zip -d /tmp/noramu-unpack
+          test -d /tmp/noramu-unpack/noramu_github_ready
+          rsync -a --exclude='.github/' /tmp/noramu-unpack/noramu_github_ready/ ./
+
+      - name: Commit unpacked files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to unpack."
+          else
+            git commit -m "chore: unpack Noramu v0.24 bundle [skip ci]"
+            git push
+          fi
