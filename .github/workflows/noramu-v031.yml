@@ -1,0 +1,122 @@
+name: Noramu and Dororong v0.31 Signal Edge Diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "noramu_dororong_v031_diagnostics.py"
+      - "V031_PROTOCOL.md"
+      - "requirements.txt"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-v031.yml"
+  push:
+    branches: [main]
+    paths:
+      - "noramu_dororong_v031_diagnostics.py"
+      - "V031_PROTOCOL.md"
+      - "requirements.txt"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-v031.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signal-edge-v031-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  kr-v031:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-kr.txt
+      - name: Install KR dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+      - name: Compile and self-test
+        run: |
+          python -m py_compile noramu_dororong_v031_diagnostics.py
+          python noramu_dororong_v031_diagnostics.py --self-test
+      - name: Run KOSPI and KOSDAQ diagnostics independently
+        run: |
+          mkdir -p v031_kr_output v031_cache v031_state_pit
+          python noramu_dororong_v031_diagnostics.py \
+            --markets KOSPI,KOSDAQ \
+            --outdir v031_kr_output \
+            --cache-dir v031_cache \
+            --state-dir v031_state_pit \
+            --period-60m 730d \
+            --period-daily 5y \
+            --top-n 60 \
+            --dynamic-top-n-kr 30 \
+            --min-market-coverage 45
+      - name: Verify KR diagnostic contract
+        run: |
+          grep -q '^PASS' v031_kr_output/RUN_VALIDATION.txt
+          grep -q '^independent_one_r=1' v031_kr_output/RUN_VALIDATION.txt
+          grep -q '^ticker_order_selection=0' v031_kr_output/RUN_VALIDATION.txt
+          grep -q '^repeat_touch_filtered=0' v031_kr_output/RUN_VALIDATION.txt
+          grep -q '^selection_uses_2026=0' v031_kr_output/RUN_VALIDATION.txt
+          grep -q '^live_approval=0' v031_kr_output/RUN_VALIDATION.txt
+          cat v031_kr_output/v031_scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signal-edge-v031-kr-${{ github.run_number }}
+          path: v031_kr_output/
+          if-no-files-found: warn
+          retention-days: 90
+
+  us-v031:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install US dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile and self-test
+        run: |
+          python -m py_compile noramu_dororong_v031_diagnostics.py
+          python noramu_dororong_v031_diagnostics.py --self-test
+      - name: Run US diagnostics independently
+        run: |
+          mkdir -p v031_us_output v031_cache
+          python noramu_dororong_v031_diagnostics.py \
+            --markets US \
+            --outdir v031_us_output \
+            --cache-dir v031_cache \
+            --us-period-60m 730d \
+            --period-daily 5y \
+            --us-top-n 120 \
+            --dynamic-top-n-us 50 \
+            --min-us-coverage 90
+      - name: Verify US diagnostic contract
+        run: |
+          grep -q '^PASS' v031_us_output/RUN_VALIDATION.txt
+          grep -q '^independent_one_r=1' v031_us_output/RUN_VALIDATION.txt
+          grep -q '^ticker_order_selection=0' v031_us_output/RUN_VALIDATION.txt
+          grep -q '^repeat_touch_filtered=0' v031_us_output/RUN_VALIDATION.txt
+          grep -q '^selection_uses_2026=0' v031_us_output/RUN_VALIDATION.txt
+          grep -q '^live_approval=0' v031_us_output/RUN_VALIDATION.txt
+          cat v031_us_output/v031_scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signal-edge-v031-us-${{ github.run_number }}
+          path: v031_us_output/
+          if-no-files-found: warn
+          retention-days: 90
