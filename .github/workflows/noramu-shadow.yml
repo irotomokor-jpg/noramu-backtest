@@ -1,30 +1,33 @@
-name: Noramu v0.24 Prospective Shadow
+name: Noramu US v0.24 Prospective Shadow
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "*.py"
+      - "noramu_level_rr_shadow_v024.py"
+      - "noramu_level_state_v022.py"
+      - "noramu_dororong_backtest_v092.py"
+      - "noramu_dororong_integrated_v012.py"
+      - "noramu_dororong_integrated_v013.py"
+      - "noramu_dororong_suboverlay_v011.py"
+      - "noramu_us_v07_legacy_engine.py"
       - "requirements.txt"
       - ".github/workflows/noramu-shadow.yml"
   schedule:
-    # Five research snapshots on US trading weekdays.
-    # UTC schedule intentionally spans EDT/EST without timezone secrets.
     - cron: "45 14,16,18,20,22 * * 1-5"
 
 permissions:
   contents: write
 
 concurrency:
-  group: noramu-v024-shadow
+  group: noramu-us-v024-shadow
   cancel-in-progress: false
 
 jobs:
-  shadow-scan:
+  us-shadow-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 50
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,7 +48,7 @@ jobs:
       - name: Frozen-engine self-test
         run: python noramu_level_rr_shadow_v024.py --self-test
 
-      - name: Run prospective shadow scan
+      - name: Run US prospective shadow scan
         run: |
           rm -rf latest_output
           mkdir -p latest_output state cache
@@ -55,57 +58,45 @@ jobs:
             --cache-dir cache \
             --period-60m 6mo
 
-      - name: Verify run
+      - name: Verify US run
         run: |
           test -f latest_output/RUN_VALIDATION.txt
           grep -q '^PASS' latest_output/RUN_VALIDATION.txt
           cat latest_output/RUN_VALIDATION.txt
-          echo "--- summary ---"
           cat latest_output/shadow_run_summary.json
 
-      - name: Upload run artifact
+      - name: Upload US artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: noramu-v024-shadow-${{ github.run_number }}
+          name: noramu-us-v024-shadow-${{ github.run_number }}
           path: |
             latest_output/
             state/
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Persist prospective state and latest result
+      - name: Persist US prospective state and latest result
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add state latest_output
 
           if git diff --cached --quiet; then
-            echo "No state/output changes to commit."
+            echo "No US state/output changes to commit."
             exit 0
           fi
+          git commit -m "us-shadow: update prospective state [skip ci]"
 
-          git commit -m "shadow: update prospective state [skip ci]"
-
-          # The user or another automation may update main while the 147-ticker
-          # scan is running. Rebase the generated state commit onto the newest
-          # main and retry instead of failing with a non-fast-forward push.
           for attempt in 1 2 3 4; do
-            echo "Persist attempt ${attempt}/4"
             git fetch origin main
             if ! git rebase origin/main; then
               git rebase --abort || true
-              echo "[ERROR] Could not rebase the generated state commit."
               exit 1
             fi
-
             if git push origin HEAD:main; then
-              echo "Prospective state persisted successfully."
               exit 0
             fi
-
             sleep $((attempt * 2))
           done
-
-          echo "[ERROR] Could not persist state after 4 push attempts."
           exit 1

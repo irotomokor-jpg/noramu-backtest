@@ -1,0 +1,108 @@
+name: Noramu KR v0.27 Execution Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "kr_level_rr_v025.py"
+      - "kr_level_rr_v026_pit.py"
+      - "kr_level_rr_v027_execution.py"
+      - ".v027_parts/**"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-kr-v027.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noramu-kr-v027-execution
+  cancel-in-progress: false
+
+jobs:
+  kr-execution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble v0.27 source on bootstrap
+        run: |
+          if [ ! -f kr_level_rr_v027_execution.py ]; then
+            cat .v027_parts/part1 .v027_parts/part2 .v027_parts/part3 > kr_level_rr_v027_execution.py
+          fi
+          python -m py_compile kr_level_rr_v027_execution.py
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements-kr.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+
+      - name: Frozen execution self-test
+        run: python kr_level_rr_v027_execution.py --self-test
+
+      - name: Run KR execution validation
+        run: |
+          rm -rf kr_execution_latest_output
+          mkdir -p kr_execution_latest_output kr_state_pit
+          python kr_level_rr_v027_execution.py \
+            --outdir kr_execution_latest_output \
+            --state-dir kr_state_pit \
+            --period-60m 730d
+
+      - name: Verify KR run
+        run: |
+          test -f kr_execution_latest_output/RUN_VALIDATION.txt
+          grep -q '^PASS' kr_execution_latest_output/RUN_VALIDATION.txt
+          cat kr_execution_latest_output/RUN_VALIDATION.txt
+          echo "--- scorecard ---"
+          cat kr_execution_latest_output/kr_execution_scorecard.csv
+
+      - name: Upload KR artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noramu-kr-v027-execution-${{ github.run_number }}
+          path: |
+            kr_execution_latest_output/
+            kr_state_pit/kr_universe_v026_pit.csv
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist KR source, PIT universe, and latest result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kr_level_rr_v027_execution.py kr_state_pit kr_execution_latest_output
+          if [ -d .v027_parts ]; then
+            git rm -r .v027_parts
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No KR changes to persist."
+            exit 0
+          fi
+          git commit -m "kr: persist v0.27 execution result [skip ci]"
+
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          exit 1

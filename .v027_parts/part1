@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Noramu LEVEL_RR v0.27-KR Execution Feasibility
+
+Exact frozen LEVEL_RR signal grammar from v0.22/v0.25/v0.26.
+Only Korean execution mechanics are changed:
+- whole shares only
+- KRX tick-size rounding
+- Toss KRX commission 0.015% each side
+- historical sell-side transaction/rural taxes
+- adverse 0/1/2 tick fill scenarios
+- account sizes 5m/10m/20m/50m KRW
+
+Research only. No orders. KOSPI PIT is primary; KOSDAQ PIT is comparator.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Dict, List
+
+import numpy as np
+import pandas as pd
+
+import kr_level_rr_v025 as kr
+import kr_level_rr_v026_pit as pit
+
+VERSION = "v0.27-KR-EXEC"
+TOSS_KRX_COMMISSION = 0.00015  # 0.015% per side
+ACCOUNT_SIZES = [5_000_000, 10_000_000, 20_000_000, 50_000_000]
+SLIPPAGE_TICKS = [0, 1, 2]
+
+
+def tick_size(price: float) -> float:
+    """KRX stock tick schedule used by both KOSPI and KOSDAQ."""
+    p = float(price)
+    if p < 2_000: return 1.0
+    if p < 5_000: return 5.0
+    if p < 20_000: return 10.0
+    if p < 50_000: return 50.0
+    if p < 200_000: return 100.0
+    if p < 500_000: return 500.0
+    return 1_000.0
+
+
+def floor_tick(price: float) -> float:
+    t = tick_size(price)
+    return max(t, math.floor((float(price) + 1e-12) / t) * t)
+
+
+def ceil_tick(price: float) -> float:
+    t = tick_size(price)
+    return max(t, math.ceil((float(price) - 1e-12) / t) * t)
+
+
+def adverse_ticks(price: float, side: str, n: int) -> float:
+    """Move an executable price n KRX ticks against the trader."""
+    p = ceil_tick(price) if side == "BUY" else floor_tick(price)
+    for _ in range(int(n)):
+        if side == "BUY":
+            p = p + tick_size(p)
+            p = ceil_tick(p)
+        else:
+            # use a price just below the current band boundary for the downward step
+            ref = max(1.0, p - 1e-9)
+            p = max(tick_size(ref), p - tick_size(ref))
+            p = floor_tick(p)
+    return float(p)
+
+
+def tax_components(market: str, ts) -> tuple[float,float]:
+    """
+    Return (securities_transaction_tax, rural_special_tax) on SELL gross.
+
+    Historical rates for the v0.26 research window:
+    2023: KOSPI STT .05% + rural .15%; KOSDAQ STT .20%
+    2024: KOSPI STT .03% + rural .15%; KOSDAQ STT .18%
+    2025: KOSPI STT 0%    + rural .15%; KOSDAQ STT .15%
+    2026+: KOSPI STT .05% + rural .15%; KOSDAQ STT .20%
+    """
+    t = pd.Timestamp(ts)
+    year = int(t.year)
+    m = str(market).upper()
+    if year <= 2023:
+        stt = 0.0005 if m == "KOSPI" else 0.0020
+    elif year == 2024:
+        stt = 0.0003 if m == "KOSPI" else 0.0018
+    elif year == 2025:
+        stt = 0.0 if m == "KOSPI" else 0.0015
+    else:
+        stt = 0.0005 if m == "KOSPI" else 0.0020
+    rural = 0.0015 if m == "KOSPI" else 0.0
+    return stt, rural
+
+
+def summarize(trades: pd.DataFrame, equity: pd.DataFrame, starting: float) -> dict:
+    if trades.empty:
+        return dict(ending_equity=starting, return_pct=0.0, trades=0, wins=0, losses=0,
+                    pf=np.nan, max_dd_pct=0.0, commissions=0.0, taxes=0.0)
+    p = trades.pnl.astype(float)
+    gp = float(p[p>0].sum()); gl = float(-p[p<0].sum())
+    ending = float(equity.equity.iloc[-1]) if len(equity) else starting + float(p.sum())
+    dd = float(equity.drawdown.max()) if len(equity) else np.nan
+    return dict(
+        ending_equity=ending,
+        return_pct=ending/starting-1.0,
+        trades=int(len(trades)),
+        wins=int((p>0).sum()), losses=int((p<0).sum()),
+        pf=float(gp/gl) if gl>0 else (float("inf") if gp>0 else np.nan),
+        max_dd_pct=dd,
+        commissions=float(trades.commissions.sum()),
+        taxes=float(trades.taxes.sum()),
+        pnl=float(p.sum()),
+    )
+
+
+def simulate_whole_share(strategy: str, data: Dict[str,pd.DataFrame], setups_by_ticker: Dict[str,List[kr.Setup]], args,
+                         starting_equity: float, slippage_ticks: int):
+    bars_at = {}; setup_at = {}
+    for ticker,x in data.items():
+        for i,ts in enumerate(x.index):
+            u = pd.Timestamp(ts).tz_convert("UTC")
+            bars_at.setdefault(u,[]).append((ticker,i))
+        for s in setups_by_ticker.get(ticker,[]):
+            ei=s.setup_i+1
+            if ei>=len(x): continue
+            u=pd.Timestamp(x.index[ei]).tz_convert("UTC")
+            setup_at.setdefault(u,[]).append((ticker,ei,s))
+
+    timeline=sorted(bars_at)
+    cash=float(starting_equity)
+    positions={}; last_mark={}; trades=[]; rejects=[]; equity_rows=[]
+    realized_by_day={}; day_start_equity={}; peak=cash
+    feasibility={
+        "starter_lt_1_share":0,"add20_lt_1_share":0,"add60_lt_1_share":0,
+        "partial_rounded_up_to_one":0,"partial_whole_exit":0,
+    }
+
+    def mtm():
+        return cash + sum(p["shares"]*last_mark.get(t,p["last_mark"]) for t,p in positions.items())
+    def planned_total(): return sum(p["planned_seed"] for p in positions.values())
+    def reserved_risk_total(): return sum(p["reserved_risk"] for p in positions.values())
+
+    def buy(p, raw_price, fraction, reason, ts):
+        nonlocal cash
+        px=adverse_ticks(raw_price,"BUY",slippage_ticks)
+        desired=p["planned_seed"]*fraction
+        qty=int(math.floor(desired/px + 1e-12))
+        if qty<1:
+            if reason=="starter20": feasibility["starter_lt_1_share"]+=1
+            elif reason=="adverse20": feasibility["add20_lt_1_share"]+=1
+            else: feasibility["add60_lt_1_share"]+=1
+            return False
+        gross=qty*px; commission=gross*TOSS_KRX_COMMISSION
+        if cash+1e-9 < gross+commission:
+            return False
+        cash-=gross+commission
+        p["shares"]+=qty; p["cash_out"]+=gross+commission
+        p["buy_notional"]+=gross; p["commissions"]+=commission
+        p["fills"].append({"time":str(ts),"raw_price":float(raw_price),"price":px,"shares":qty,
+                           "fraction":fraction,"reason":reason,"slippage_ticks":slippage_ticks})
+        p["last_mark"]=px; last_mark[p["ticker"]]=px
+        return True
+
+    def sell(p, qty, raw_price, reason, ts):
+        nonlocal cash
+        qty=min(int(qty),int(p["shares"]))
+        if qty<=0: return 0
+        px=adverse_ticks(raw_price,"SELL",slippage_ticks)
+        gross=qty*px; commission=gross*TOSS_KRX_COMMISSION
+        stt_rate,rural_rate=tax_components(p["market"],ts)
+        stt=gross*stt_rate; rural=gross*rural_rate; tax=stt+rural
+        cash+=gross-commission-tax
+        p["shares"]-=qty; p["cash_in"]+=gross-commission-tax
+        p["sell_notional"]+=gross; p["commissions"]+=commission; p["taxes"]+=tax
+        p["events"].append({"time":str(ts),"raw_price":float(raw_price),"price":px,"shares":qty,
+                            "reason":reason,"slippage_ticks":slippage_ticks,
+                            "commission":commission,"stt":stt,"rural_tax":rural})
+        return qty
+
+    def close(ticker,raw_price,reason,status,ts):
+        p=positions[ticker]
+        if p["shares"]>0: sell(p,p["shares"],raw_price,reason,ts)
+        pnl=p["cash_in"]-p["cash_out"]
+        d=kr.kr_date(ts); realized_by_day[d]=realized_by_day.get(d,0.0)+pnl
+        row={k:v for k,v in p.items() if k not in {"fills","events"}}

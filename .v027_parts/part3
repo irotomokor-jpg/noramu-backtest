@@ -1,0 +1,85 @@
+    if qparts: pd.concat(qparts,ignore_index=True).to_csv(out/"kr_execution_quarter_summary.csv",index=False,encoding="utf-8-sig")
+
+    print("\n[3/3] Frozen scorecard")
+    score=[]
+    for market,label in [("KOSPI","KOSPI40_PIT"),("KOSDAQ","KOSDAQ40_PIT")]:
+        base=sdf[(sdf.universe==label)&(sdf.capital_krw==5_000_000)&(sdf.slippage_ticks==1)]
+        stress=sdf[(sdf.universe==label)&(sdf.capital_krw==5_000_000)&(sdf.slippage_ticks==2)]
+        cap20=sdf[(sdf.universe==label)&(sdf.capital_krw==20_000_000)&(sdf.slippage_ticks==1)]
+        b=base.iloc[0]; st=stress.iloc[0]; c20=cap20.iloc[0]
+        supported=bool(b.pnl>0 and b.pf>1 and st.pnl>0 and c20.pnl>0)
+        status=("EXECUTION_SUPPORTED" if supported else "EXECUTION_UNSUPPORTED")
+        if market=="KOSDAQ" and supported: status="COMPARATOR_ONLY_SUPPORTED"
+        score.append({"market":market,"primary":int(market=="KOSPI"),
+                      "5m_1tick_pnl":float(b.pnl),"5m_1tick_pf":float(b.pf),
+                      "5m_2tick_pnl":float(st.pnl),"20m_1tick_pnl":float(c20.pnl),
+                      "status":status,"live_approval":False})
+    pd.DataFrame(score).to_csv(out/"kr_execution_scorecard.csv",index=False,encoding="utf-8-sig")
+
+    config={
+        "version":VERSION,"pit_date":pit.PIT_DATE,"signal_params":kr.FROZEN,
+        "signal_params_changed":False,"market_gate":False,"fractional_shares":False,
+        "broker_model":"Toss Securities KRX commission 0.015% each side",
+        "commission_rate":TOSS_KRX_COMMISSION,
+        "account_sizes_krw":ACCOUNT_SIZES,"slippage_ticks":SLIPPAGE_TICKS,
+        "tax_model":{
+            "2023":"KOSPI STT 0.05% + rural 0.15%; KOSDAQ STT 0.20%",
+            "2024":"KOSPI STT 0.03% + rural 0.15%; KOSDAQ STT 0.18%",
+            "2025":"KOSPI STT 0% + rural 0.15%; KOSDAQ STT 0.15%",
+            "2026+":"KOSPI STT 0.05% + rural 0.15%; KOSDAQ STT 0.20%",
+        },
+        "warning":"Research execution model. Historical 60m Yahoo data and delisted-ticker availability biases remain.",
+        "live_approval":False,
+    }
+    (out/"run_config.json").write_text(json.dumps(config,ensure_ascii=False,indent=2),encoding="utf-8")
+    (out/"RUN_VALIDATION.txt").write_text(
+        "PASS\n"
+        f"resolved_kospi={resolved.get('KOSPI',0)}\nresolved_kosdaq={resolved.get('KOSDAQ',0)}\n"
+        "signal_params_changed=0\nwhole_shares=1\nkrx_tick_model=1\ntoss_commission_and_sell_tax=1\n"
+        "PASS means execution study completed; no live approval.\n",encoding="utf-8")
+    print("RUN_VALIDATION=PASS")
+
+
+def self_test():
+    assert kr.FROZEN["pivot_span"]==2 and kr.FROZEN["level_lookback"]==240 and kr.FROZEN["retest_window"]==6
+    assert tick_size(1999)==1 and tick_size(2000)==5 and tick_size(4999)==5
+    assert tick_size(5000)==10 and tick_size(20000)==50 and tick_size(50000)==100
+    assert tick_size(200000)==500 and tick_size(500000)==1000
+    assert adverse_ticks(100000,"BUY",1)==100100
+    assert adverse_ticks(100000,"SELL",1)==99900
+    assert abs(sum(tax_components("KOSPI",pd.Timestamp("2023-09-01")))-0.0020)<1e-12
+    assert abs(sum(tax_components("KOSPI",pd.Timestamp("2025-09-01")))-0.0015)<1e-12
+    assert abs(sum(tax_components("KOSDAQ",pd.Timestamp("2026-09-01")))-0.0020)<1e-12
+    print("SELF_TEST=PASS")
+    print("frozen_signal=PASS")
+    print("whole_share_tick_tax_model=PASS")
+
+
+def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--outdir",default="kr_execution_output")
+    ap.add_argument("--state-dir",default="kr_state_pit")
+    ap.add_argument("--period-60m",default="730d")
+    ap.add_argument("--top-n",type=int,default=40)
+    ap.add_argument("--min-market-coverage",type=int,default=30)
+    ap.add_argument("--self-test",action="store_true")
+    # Frozen risk controls from v0.26; starting equity is varied internally.
+    ap.add_argument("--base-risk-pct",type=float,default=0.01)
+    ap.add_argument("--max-total-risk-pct",type=float,default=0.02)
+    ap.add_argument("--max-symbol-pct",type=float,default=0.20)
+    ap.add_argument("--max-positions",type=int,default=4)
+    ap.add_argument("--daily-loss-stop-pct",type=float,default=0.015)
+    ap.add_argument("--dd-reduce-pct",type=float,default=0.05)
+    ap.add_argument("--dd-risk-mult",type=float,default=0.50)
+    ap.add_argument("--dd-halt-pct",type=float,default=0.08)
+    ap.add_argument("--min-seed-krw",type=float,default=50_000)
+    ap.add_argument("--partial-fraction",type=float,default=0.50)
+    ap.add_argument("--max-hold",type=int,default=26)
+    ap.add_argument("--adverse20-r",type=float,default=0.40)
+    ap.add_argument("--adverse60-r",type=float,default=0.80)
+    args=ap.parse_args()
+    if args.self_test: self_test(); return
+    run(args)
+
+if __name__=="__main__":
+    main()
