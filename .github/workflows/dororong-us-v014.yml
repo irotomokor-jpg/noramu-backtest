@@ -7,9 +7,9 @@ on:
       - "agent/dororong-us-v014-robustness"
     paths:
       - "noramu_dororong_backtest_v092.py"
-      - "noramu_dororong_suboverlay_v011.py"
       - "noramu_dororong_integrated_v012.py"
       - "noramu_dororong_integrated_v013.py"
+      - "dororong_us_v014_raw_robustness.py"
       - "requirements.txt"
       - ".github/workflows/dororong-us-v014.yml"
 
@@ -42,35 +42,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Compile and self-test existing Dororong engine
+      - name: Compile and self-test standalone Dororong validator
         run: |
-          python -m py_compile noramu_dororong_integrated_v013.py
-          python noramu_dororong_integrated_v013.py --self-test
+          python -m py_compile dororong_us_v014_raw_robustness.py
+          python dororong_us_v014_raw_robustness.py --self-test
 
-      - name: Run frozen Dororong cost robustness
+      - name: Run frozen Dororong robustness
         run: |
           rm -rf dororong_us_v014_output
-          mkdir -p dororong_us_v014_output
-          for COST in 5 10 20 30; do
-            echo "=== COST ${COST} bps/side ==="
-            python noramu_dororong_integrated_v013.py \
-              --period-60m 730d \
-              --period-daily 5y \
-              --cache-dir dororong_us_v014_cache \
-              --outdir "dororong_us_v014_output/${COST}bps" \
-              --cost-bps-side "$COST"
-            test -f "dororong_us_v014_output/${COST}bps/RUN_VALIDATION.txt"
-            grep -q '^PASS' "dororong_us_v014_output/${COST}bps/RUN_VALIDATION.txt"
-          done
+          python dororong_us_v014_raw_robustness.py \
+            --period-60m 730d \
+            --period-daily 5y \
+            --cache-dir dororong_us_v014_cache \
+            --outdir dororong_us_v014_output
 
-      - name: Print core Dororong results
+      - name: Verify and print result
         run: |
-          for COST in 5 10 20 30; do
-            echo "--- ${COST} bps strategy summary ---"
-            cat "dororong_us_v014_output/${COST}bps/doro_strategy_summary.csv"
-            echo "--- ${COST} bps concentration ---"
-            cat "dororong_us_v014_output/${COST}bps/doro_concentration_checks.csv"
-          done
+          test -f dororong_us_v014_output/RUN_VALIDATION.txt
+          grep -q '^PASS' dororong_us_v014_output/RUN_VALIDATION.txt
+          grep -q 'NO_ORDERS' dororong_us_v014_output/RUN_VALIDATION.txt
+          cat dororong_us_v014_output/dororong_v014_scorecard.json
+          cat dororong_us_v014_output/doro_cost_summary.csv
+          cat dororong_us_v014_output/doro_exact_exclusions.csv
 
       - name: Upload artifact
         if: always()
