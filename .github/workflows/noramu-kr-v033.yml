@@ -1,4 +1,4 @@
-name: Noramu KR v0.33 Dynamic PIT Universe Validation
+name: Noramu KR v0.33.1 Dynamic PIT Universe Validation
 
 on:
   workflow_dispatch:
@@ -15,6 +15,7 @@ on:
       - "kr_level_rr_v031_pullback_regime.py"
       - "kr_level_rr_v032_portfolio_walkforward.py"
       - "kr_level_rr_v033_dynamic_pit_universe.py"
+      - "kr_level_rr_v0331_dynamic_pit_hotfix.py"
       - "requirements-kr.txt"
       - ".github/workflows/noramu-kr-v033.yml"
 
@@ -47,23 +48,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-kr.txt
 
-      - name: Compile and self-test v0.33
+      - name: Compile and self-test v0.33.1
         run: |
-          python -m py_compile kr_level_rr_v033_dynamic_pit_universe.py
-          python kr_level_rr_v033_dynamic_pit_universe.py --self-test
+          python -m py_compile kr_level_rr_v033_dynamic_pit_universe.py kr_level_rr_v0331_dynamic_pit_hotfix.py
+          python kr_level_rr_v0331_dynamic_pit_hotfix.py --self-test
 
-      - name: Run dynamic PIT validation
+      - name: Run corrected dynamic PIT validation
         run: |
           rm -rf kr_v033_latest_output
           mkdir -p kr_v033_latest_output
-          python kr_level_rr_v033_dynamic_pit_universe.py \
+          python kr_level_rr_v0331_dynamic_pit_hotfix.py \
             --outdir kr_v033_latest_output \
             --period-60m 730d
 
-      - name: Verify v0.33 run
+      - name: Verify v0.33.1 run
         run: |
           test -f kr_v033_latest_output/RUN_VALIDATION.txt
           grep -q '^PASS' kr_v033_latest_output/RUN_VALIDATION.txt
+          grep -q 'v0.33.1-KR-DYNAMIC-PIT-UNIVERSE-HOTFIX' kr_v033_latest_output/RUN_VALIDATION.txt
           cat kr_v033_latest_output/RUN_VALIDATION.txt
           echo "--- snapshots ---"
           cat kr_v033_latest_output/snapshot_coverage.csv
@@ -74,23 +76,23 @@ jobs:
           echo "--- turnover ---"
           cat kr_v033_latest_output/snapshot_turnover.csv
 
-      - name: Upload v0.33 artifact
+      - name: Upload v0.33.1 artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: noramu-kr-v033-dynamic-pit-${{ github.run_number }}
+          name: noramu-kr-v0331-dynamic-pit-${{ github.run_number }}
           path: kr_v033_latest_output/
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Persist latest v0.33 result to research branch
+      - name: Persist latest v0.33.1 result to research branch
         if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add kr_v033_latest_output
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "kr: persist v0.33 dynamic PIT result [skip ci]"
+          git commit -m "kr: persist corrected v0.33.1 dynamic PIT result [skip ci]"
           BRANCH="${GITHUB_REF_NAME}"
           for attempt in 1 2 3 4; do
             git fetch origin "$BRANCH"
