@@ -7,6 +7,7 @@ on:
       - "agent/dororong-us-v015-market-gate-robustness"
     paths:
       - "dororong_us_v015_market_gate_robustness.py"
+      - "dororong_us_v015_runner.py"
       - "noramu_dororong_backtest_v092.py"
       - "noramu_dororong_suboverlay_v011.py"
       - "noramu_dororong_integrated_v012.py"
@@ -45,13 +46,13 @@ jobs:
 
       - name: Compile and self-test
         run: |
-          python -m py_compile dororong_us_v015_market_gate_robustness.py
+          python -m py_compile dororong_us_v015_market_gate_robustness.py dororong_us_v015_runner.py
           python dororong_us_v015_market_gate_robustness.py --self-test
 
       - name: Run frozen market-gate robustness matrix
         run: |
           rm -rf dororong_us_v015_output
-          python dororong_us_v015_market_gate_robustness.py \
+          python dororong_us_v015_runner.py \
             --period-60m 730d \
             --period-daily 5y \
             --cache-dir dororong_us_v015_cache \
