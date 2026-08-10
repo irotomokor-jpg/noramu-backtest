@@ -1,0 +1,8 @@
+PASS
+resolved_kospi=40
+resolved_kosdaq=36
+signal_params_changed=0
+whole_shares=1
+krx_tick_model=1
+toss_commission_and_sell_tax=1
+PASS means execution study completed; no live approval.
