@@ -1,0 +1,91 @@
+name: Noramu KR v0.28 Execution Filter Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "kr_level_rr_v025.py"
+      - "kr_level_rr_v026_pit.py"
+      - "kr_level_rr_v027_execution.py"
+      - "kr_level_rr_v028_execution_filter.py"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-kr-v028.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noramu-kr-v028-execution-filter
+  cancel-in-progress: false
+
+jobs:
+  kr-v028:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements-kr.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+
+      - name: Compile and self-test v0.28
+        run: |
+          python -m py_compile kr_level_rr_v028_execution_filter.py
+          python kr_level_rr_v028_execution_filter.py --self-test
+
+      - name: Run KOSPI PIT v0.28 validation
+        run: |
+          rm -rf kr_v028_latest_output
+          mkdir -p kr_v028_latest_output kr_state_pit
+          python kr_level_rr_v028_execution_filter.py \
+            --outdir kr_v028_latest_output \
+            --state-dir kr_state_pit \
+            --period-60m 730d
+
+      - name: Verify v0.28 run
+        run: |
+          test -f kr_v028_latest_output/RUN_VALIDATION.txt
+          grep -q '^PASS' kr_v028_latest_output/RUN_VALIDATION.txt
+          cat kr_v028_latest_output/RUN_VALIDATION.txt
+          echo "--- summary ---"
+          cat kr_v028_latest_output/kr_v028_summary.csv
+
+      - name: Upload v0.28 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noramu-kr-v028-execution-filter-${{ github.run_number }}
+          path: |
+            kr_v028_latest_output/
+            kr_state_pit/kr_universe_v026_pit.csv
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist latest v0.28 result
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kr_v028_latest_output kr_state_pit/kr_universe_v026_pit.csv
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "kr: persist v0.28 result [skip ci]"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if ! git rebase origin/main; then git rebase --abort || true; exit 1; fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
