@@ -1,0 +1,7 @@
+﻿lever,cost_bps_side,signal_rows,pnl_days,switches,fees,ending_equity,return_pct,max_dd,current_asset,latest_signal_date
+TQQQ,5.0,0,0,0,0.0,10000.0,0.0,0.0,,
+TQQQ,10.0,0,0,0,0.0,10000.0,0.0,0.0,,
+TQQQ,20.0,0,0,0,0.0,10000.0,0.0,0.0,,
+SOXL,5.0,0,0,0,0.0,10000.0,0.0,0.0,,
+SOXL,10.0,0,0,0,0.0,10000.0,0.0,0.0,,
+SOXL,20.0,0,0,0,0.0,10000.0,0.0,0.0,,
