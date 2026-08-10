@@ -221,17 +221,28 @@ def simulate_strategy(spec: StrategySpec, market: str,
                       data: Mapping[str, pd.DataFrame],
                       setups: Mapping[str, Sequence[n92.NativeSetup]], args,
                       starting_equity: float, slippage_ticks: int,
-                      exit_spec: v29.ExitSpec = CONTROL_EXIT):
+                      exit_spec: v29.ExitSpec = CONTROL_EXIT,
+                      start_time=None, end_time=None):
     """Whole-share shared-account simulation with conservative bar ordering."""
+    start = pd.Timestamp(start_time) if start_time is not None else None
+    end = pd.Timestamp(end_time) if end_time is not None else None
+    if start is not None:
+        start = start.tz_localize("UTC") if start.tzinfo is None else start.tz_convert("UTC")
+    if end is not None:
+        end = end.tz_localize("UTC") if end.tzinfo is None else end.tz_convert("UTC")
     bars_at: Dict[pd.Timestamp, list] = {}
     setup_at: Dict[pd.Timestamp, list] = {}
     for ticker, x in data.items():
         for i, ts in enumerate(x.index):
-            bars_at.setdefault(_timestamp_utc(ts, market), []).append((ticker, i))
+            u = _timestamp_utc(ts, market)
+            if (start is None or u >= start) and (end is None or u <= end):
+                bars_at.setdefault(u, []).append((ticker, i))
         for s in setups.get(ticker, []):
             ei = int(s.setup_i)+1
             if ei < len(x):
-                setup_at.setdefault(_timestamp_utc(x.index[ei], market), []).append((ticker, ei, s))
+                u = _timestamp_utc(x.index[ei], market)
+                if (start is None or u >= start) and (end is None or u <= end):
+                    setup_at.setdefault(u, []).append((ticker, ei, s))
 
     timeline = sorted(bars_at)
     cash = float(starting_equity)
@@ -666,34 +677,24 @@ def run_market(market: str, raw60: Mapping[str, pd.DataFrame],
                    "DORORONG_PRE2": doro_data}
     base_capital = 5_000.0 if market == "US" else 5_000_000.0
     stress_capital = 20_000.0 if market == "US" else 20_000_000.0
-    grid_rows, period_rows = [], []
-    base_results = {}
-    grid_results = {}
+    grid_rows = []
 
-    print(f"[{market}] fixed strategy grid")
+    print(f"[{market}] development-only strategy grid")
     for spec in STRATEGIES:
         data = data_by_key[spec.signal_key]
         setups = setup_buckets[spec.signal_key]
         for slip in (0, 1, 2):
             tr, eq, rj = simulate_strategy(spec, market, data, setups, args,
-                                           base_capital, slip)
-            grid_results[(spec.strategy_id, slip)] = (tr, eq, rj)
+                                           base_capital, slip,
+                                           end_time=DEV_END)
             met = v29.metrics(tr, eq, base_capital)
             row = {"market": market, **asdict(spec), "capital": base_capital,
-                   "slippage_ticks": slip,
+                   "slippage_ticks": slip, "window": "DEVELOPMENT_TO_2025",
                    "development_score": v29.candidate_score(tr, base_capital),
                    "rejects": len(rj), **met}
             grid_rows.append(row)
-            pm = v29.period_metrics(tr, base_capital)
-            if not pm.empty:
-                pm.insert(0, "market", market)
-                pm.insert(1, "strategy_id", spec.strategy_id)
-                pm.insert(2, "capital", base_capital)
-                pm.insert(3, "slippage_ticks", slip)
-                period_rows.append(pm)
             if slip == 1:
-                base_results[spec.strategy_id] = (tr, eq, rj)
-                tr.to_csv(market_dir/f"{spec.strategy_id}_1T_trades.csv", index=False,
+                tr.to_csv(market_dir/f"{spec.strategy_id}_DEV_1T_trades.csv", index=False,
                           encoding="utf-8-sig")
             print(f" {spec.strategy_id:<38} {slip}T trades={met['trades']:>4} "
                   f"PF={met['pf']!s:<8} pnl={met['pnl']:>12.2f}")
@@ -711,38 +712,43 @@ def run_market(market: str, raw60: Mapping[str, pd.DataFrame],
     for family, spec in selected_specs.items():
         data = data_by_key[spec.signal_key]
         setups = setup_buckets[spec.signal_key]
-        tr_base, eq_base, _ = base_results[spec.strategy_id]
+        scenario_results = {}
+        scenarios = (
+            ("VALIDATION_2026_H1", "base", base_capital,
+             VALIDATION_START, VALIDATION_END),
+            ("STRESS_2026_07_PLUS", "base", base_capital,
+             STRESS_START, None),
+            ("VALIDATION_2026_H1", "larger", stress_capital,
+             VALIDATION_START, VALIDATION_END),
+        )
+        for window, account_role, capital, start_time, end_time in scenarios:
+            for slip in (0, 1, 2):
+                tr, eq, rj = simulate_strategy(
+                    spec, market, data, setups, args, capital, slip,
+                    start_time=start_time, end_time=end_time,
+                )
+                scenario_results[(window, account_role, slip)] = (tr, eq, rj)
+                validation_rows.append({
+                    "market": market, "family": family,
+                    "selected_strategy": spec.strategy_id,
+                    "window": window, "account_role": account_role,
+                    "capital": capital, "slippage_ticks": slip,
+                    "rejects": len(rj), **v29.metrics(tr, eq, capital),
+                })
+
+        tr_base, eq_base, _ = scenario_results[("VALIDATION_2026_H1", "base", 1)]
         family_trades[family] = tr_base
-        tr_base.to_csv(market_dir/f"SELECTED_{family}_trades.csv", index=False,
-                       encoding="utf-8-sig")
-        eq_base.to_csv(market_dir/f"SELECTED_{family}_equity.csv", index=False,
-                       encoding="utf-8-sig")
+        tr_base.to_csv(market_dir/f"SELECTED_{family}_VALIDATION_trades.csv",
+                       index=False, encoding="utf-8-sig")
+        eq_base.to_csv(market_dir/f"SELECTED_{family}_VALIDATION_equity.csv",
+                       index=False, encoding="utf-8-sig")
 
-        stress_results = {}
-        for slip in (0, 1, 2):
-            tr, eq, rj = simulate_strategy(spec, market, data, setups, args,
-                                           stress_capital, slip)
-            stress_results[slip] = (tr, eq)
-            validation_rows.append({
-                "market": market, "family": family,
-                "selected_strategy": spec.strategy_id,
-                "capital": stress_capital, "slippage_ticks": slip,
-                "rejects": len(rj), **v29.metrics(tr, eq, stress_capital),
-            })
-            pm = v29.period_metrics(tr, stress_capital)
-            if not pm.empty:
-                pm.insert(0, "market", market)
-                pm.insert(1, "strategy_id", spec.strategy_id)
-                pm.insert(2, "capital", stress_capital)
-                pm.insert(3, "slippage_ticks", slip)
-                period_rows.append(pm)
-
-        vm = _window_metrics(tr_base, "VALIDATION_2026_H1", base_capital)
-        tr2, _, _ = grid_results[(spec.strategy_id, 2)]
-        sm = _window_metrics(tr2, "STRESS_2026_07_PLUS", base_capital)
-        cap_tr, _ = stress_results[1]
-        cap_vm = _window_metrics(cap_tr, "VALIDATION_2026_H1", stress_capital)
-        conc = v29.concentration(_validation_trades(tr_base))
+        vm = v29.metrics(tr_base, eq_base, base_capital)
+        stress_tr, stress_eq, _ = scenario_results[("STRESS_2026_07_PLUS", "base", 2)]
+        sm = v29.metrics(stress_tr, stress_eq, base_capital)
+        cap_tr, cap_eq, _ = scenario_results[("VALIDATION_2026_H1", "larger", 1)]
+        cap_vm = v29.metrics(cap_tr, cap_eq, stress_capital)
+        conc = v29.concentration(tr_base)
         passed = bool(
             vm["trades"] >= 100 and vm["pnl"] > 0
             and np.isfinite(vm["pf"]) and vm["pf"] >= 1.20
@@ -762,12 +768,6 @@ def run_market(market: str, raw60: Mapping[str, pd.DataFrame],
             "status": "RESEARCH_GATE_PASS" if passed else "RESEARCH_GATE_FAIL",
             "live_approval": False,
         })
-        validation_rows.append({
-            "market": market, "family": family,
-            "selected_strategy": spec.strategy_id, "capital": base_capital,
-            "slippage_ticks": 1, "rejects": len(base_results[spec.strategy_id][2]),
-            **v29.metrics(tr_base, eq_base, base_capital),
-        })
 
     doro_all = {t: setup_buckets["DORORONG_PRE1"].get(t, [])
                 + setup_buckets["DORORONG_PRE2"].get(t, []) for t in raw60}
@@ -775,9 +775,13 @@ def run_market(market: str, raw60: Mapping[str, pd.DataFrame],
     corr = _daily_pnl_correlation(family_trades)
 
     grid.to_csv(market_dir/"strategy_grid.csv", index=False, encoding="utf-8-sig")
-    pd.DataFrame(validation_rows).to_csv(market_dir/"selected_family_validation.csv",
-                                         index=False, encoding="utf-8-sig")
-    (pd.concat(period_rows, ignore_index=True) if period_rows else pd.DataFrame()).to_csv(
+    validation_df = pd.DataFrame(validation_rows)
+    validation_df.to_csv(market_dir/"selected_family_validation.csv",
+                         index=False, encoding="utf-8-sig")
+    pd.concat([
+        grid.assign(account_role="base"),
+        validation_df.rename(columns={"selected_strategy": "strategy_id"}),
+    ], ignore_index=True, sort=False).to_csv(
         market_dir/"window_metrics.csv", index=False, encoding="utf-8-sig")
     (market_dir/"family_diagnostics.json").write_text(json.dumps(
         {"signal_overlap": overlap, "validation_pnl_correlation": corr,
@@ -827,6 +831,7 @@ def run(args):
         "development_end": str(DEV_END),
         "validation": "2026-01-01 through 2026-06-30",
         "locked_stress": "2026-07-01 onward; never used for selection",
+        "window_account_state": "development, validation and stress each start from fresh equity",
         "markets": scores,
         "all_selected_families_passed": bool(scores and all(
             f["status"] == "RESEARCH_GATE_PASS"
@@ -848,6 +853,7 @@ def run(args):
         "version": VERSION, "strategies": [asdict(s) for s in STRATEGIES],
         "control_exit": asdict(CONTROL_EXIT),
         "selection_uses_2026_07": False,
+        "independent_window_account_reset": True,
         "noramu_daily_context": "MA60>MA240, rising MA60, Envelope 20/9 touch",
         "noramu_intraday_structure": "60m box breakout -> retest -> higher-low",
         "dororong_pre1": "60m channel + higher-low + maintained volume",
@@ -866,6 +872,7 @@ def run(args):
     (out/"RUN_VALIDATION.txt").write_text(
         "PASS\nversion=v0.30\nsource_families_separated=1\n"
         "hybrid_candidates=0\nrsi_candidates=0\nselection_uses_2026_07=0\n"
+        "independent_window_account_reset=1\n"
         "live_approval=0\nPASS means the research pipeline completed, not that a strategy passed.\n",
         encoding="utf-8")
     return overall
@@ -907,6 +914,11 @@ def self_test():
     tr, eq, rj = simulate_strategy(spec, "US", {"TEST": x}, {"TEST": [s]},
                                    args, 5000.0, 0)
     assert len(tr) == 1 and float(tr.pnl.iloc[0]) > 0 and len(rj) == 0
+    excluded, _, _ = simulate_strategy(
+        spec, "US", {"TEST": x}, {"TEST": [s]}, args, 5000.0, 0,
+        start_time=idx[2], end_time=idx[-1],
+    )
+    assert excluded.empty
 
     # Both source-specific Noramu entry paths must actually reach three fills.
     xa = x.copy()
@@ -934,6 +946,7 @@ def self_test():
     assert len(trr) == 1 and int(trr.fill_count.iloc[0]) == 3
     print("SELF_TEST=PASS")
     print("source_families_separated=PASS")
+    print("independent_window_account_reset=PASS")
     print("locked_stress_not_used_for_selection=PASS")
     print("live_order_code_absent=PASS")
 

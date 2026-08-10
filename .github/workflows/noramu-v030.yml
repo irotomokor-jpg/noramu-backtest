@@ -62,6 +62,7 @@ jobs:
           grep -q '^source_families_separated=1' v030_kr_output/RUN_VALIDATION.txt
           grep -q '^hybrid_candidates=0' v030_kr_output/RUN_VALIDATION.txt
           grep -q '^rsi_candidates=0' v030_kr_output/RUN_VALIDATION.txt
+          grep -q '^independent_window_account_reset=1' v030_kr_output/RUN_VALIDATION.txt
           cat v030_kr_output/v030_scorecard.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -106,6 +107,7 @@ jobs:
           grep -q '^source_families_separated=1' v030_us_output/RUN_VALIDATION.txt
           grep -q '^hybrid_candidates=0' v030_us_output/RUN_VALIDATION.txt
           grep -q '^rsi_candidates=0' v030_us_output/RUN_VALIDATION.txt
+          grep -q '^independent_window_account_reset=1' v030_us_output/RUN_VALIDATION.txt
           cat v030_us_output/v030_scorecard.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -114,4 +116,3 @@ jobs:
           path: v030_us_output/
           if-no-files-found: warn
           retention-days: 90
-
