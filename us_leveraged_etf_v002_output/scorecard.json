@@ -1,0 +1,48 @@
+{
+  "version": "v0.02-US-LEVERAGED-ETF-ROBUSTNESS",
+  "research_only": true,
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "frozen_candidates": {
+    "TQQQ": {
+      "base": "QQQ",
+      "signal_mode": "SELF",
+      "band": 0.03
+    },
+    "TECL": {
+      "base": "XLK",
+      "signal_mode": "BASE",
+      "band": 0.0
+    },
+    "SOXL": {
+      "base": "SOXX",
+      "signal_mode": "SELF",
+      "band": 0.08
+    }
+  },
+  "ma_windows_tested": [
+    150,
+    175,
+    200,
+    225,
+    250
+  ],
+  "costs_bps_side": [
+    5.0,
+    10.0,
+    20.0
+  ],
+  "extra_execution_delay_days_tested": 1,
+  "rolling_3y_positive_fraction_gate": 0.7,
+  "robustness_pass": [
+    "TQQQ",
+    "SOXL"
+  ],
+  "robustness_fail": [
+    "TECL"
+  ],
+  "alternate_defense_pareto": [],
+  "status": "FORWARD_FREEZE_ELIGIBLE",
+  "forward_boundary_if_frozen": "2026-08-11 America/New_York; 2026-08-10 session already seen in v0.01/v0.02 research",
+  "next_required_validation": "freeze only robustness-pass candidates without changing rules; prospective shadow from 2026-08-11 ET. Synthetic pre-inception history remains a separate audit, not a tuning source."
+}

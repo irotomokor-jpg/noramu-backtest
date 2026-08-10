@@ -1,0 +1,4 @@
+﻿lever,robustness_pass,ma_all_positive,ma_mdd_all_better_than_bh,delay1_positive_and_mdd_better,cost20_positive,rolling3y_positive_fraction,rolling3y_count,post2020_positive
+TQQQ,True,True,True,True,True,1.0,51,True
+TECL,False,True,False,True,True,0.9642857142857143,56,True
+SOXL,True,True,True,True,True,0.9803921568627451,51,True
