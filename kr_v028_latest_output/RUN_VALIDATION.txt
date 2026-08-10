@@ -1,0 +1,18 @@
+PASS
+{
+  "version": "v0.28-KR-EXEC-FILTER",
+  "status": "EXECUTION_UNSUPPORTED",
+  "live_approval": false,
+  "5m_1t_pnl": -183009.82850000047,
+  "5m_1t_pf": 0.5871462308294153,
+  "5m_1t_dd": 0.040678896581676116,
+  "5m_2t_pnl": -261578.51199999967,
+  "20m_1t_pnl": -423737.3684999989,
+  "historical_backtest_only": true,
+  "filters": {
+    "min_risk_pct": 0.012,
+    "min_r_atr": 0.75,
+    "max_tick_r": 0.1,
+    "max_entry_gap_atr": 0.25
+  }
+}
