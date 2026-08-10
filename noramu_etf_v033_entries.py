@@ -257,7 +257,6 @@ def download_history(
         interval=interval,
         period=period,
         auto_adjust=True,
-        repair=True,
         progress=False,
         prepost=False,
         threads=False,
