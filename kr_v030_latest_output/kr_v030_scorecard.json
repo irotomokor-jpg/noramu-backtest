@@ -1,0 +1,50 @@
+{
+  "version": "v0.30-KR-REGIME-ROBUSTNESS",
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "same_run_v029_control_5m1t": {
+    "pnl": 58572.28200000028,
+    "pf": 1.2717997581767833,
+    "dd": 0.014258160858608648,
+    "trades": 52
+  },
+  "v030_best": {
+    "variant": "BALANCED|STAGED_CONDITIONAL|H52",
+    "status": "RESEARCH_ONLY",
+    "5m_1t_pnl": 4216.115000000078,
+    "5m_1t_pf": 18.997588149922983,
+    "5m_1t_dd": 0.0013032358008517875,
+    "5m_2t_pnl": 3116.3099999999977,
+    "20m_1t_pnl": 13441.854999999749,
+    "train_pnl": 4216.115000000078,
+    "train_trades": 2,
+    "oos2026_pnl": 0.0,
+    "oos2026_trades": 0,
+    "jul2026_pnl": 0.0,
+    "jul2026_trades": 0,
+    "min_year_pnl": 4216.115000000078,
+    "top1_positive_share": 1.0,
+    "top3_positive_share": 1.0,
+    "residual_after_top3": -234.2599999999511,
+    "robust_score": 6441.477449148259,
+    "5m_3t_pnl": 2316.5500000000757,
+    "20m_3t_pnl": -2949.3850000000093,
+    "stress_status": "3T_STRESS_ONLY"
+  },
+  "survivor_count": 0,
+  "candidate_counts": {
+    "v029_pullback": 103,
+    "v030_after_actual_regate": 16
+  },
+  "correctness": {
+    "actual_entry_execution_regate": true,
+    "regime_strictly_prior_bar": true,
+    "conservative_same_bar_trail": true,
+    "trail_break_even_after_1R": 1.0
+  },
+  "cost_model": {
+    "broker": "Toss KRX",
+    "commission_each_side": 0.00015,
+    "note": "KRX model; NXT not mixed into historical Yahoo 60m study"
+  }
+}
