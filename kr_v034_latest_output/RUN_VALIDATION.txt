@@ -1,0 +1,43 @@
+PASS
+{
+  "version": "v0.34-KR-DYNAMIC-REGIME-FINAL",
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "clean_unseen_oos_available": false,
+  "candidate_count": 0,
+  "best": null,
+  "all_results": [
+    {
+      "regime": "FAST",
+      "status": "RESEARCH_ONLY",
+      "5m1t_pnl": 567141.2930000003,
+      "5m1t_pf": 3.0413464431863537,
+      "5m1t_dd": 0.02725979372595566,
+      "trades": 29,
+      "all_years_positive": false,
+      "all_costs_positive": true,
+      "all_orders_positive": true,
+      "top3_exclusion_positive": true,
+      "top3_exclusion_pnl": 30677.744999999937,
+      "5m3t_pnl": 463742.9615,
+      "20m3t_pnl": 1611572.7684999993
+    },
+    {
+      "regime": "STRUCTURAL",
+      "status": "RESEARCH_ONLY",
+      "5m1t_pnl": 397103.79250000033,
+      "5m1t_pf": 2.303639265810905,
+      "5m1t_dd": 0.04197836441738323,
+      "trades": 28,
+      "all_years_positive": false,
+      "all_costs_positive": true,
+      "all_orders_positive": true,
+      "top3_exclusion_positive": false,
+      "top3_exclusion_pnl": -76355.44999999978,
+      "5m3t_pnl": 360126.3424999998,
+      "20m3t_pnl": 949900.1225000008
+    }
+  ],
+  "decision": "STOP_TUNING_REDESIGN_REQUIRED",
+  "note": "No new threshold search was performed; only the two pre-existing v0.31 survivors were compared under corrected dynamic PIT."
+}
