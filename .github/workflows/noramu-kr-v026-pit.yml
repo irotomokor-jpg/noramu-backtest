@@ -1,0 +1,111 @@
+name: Noramu v0.26-KR PIT Robustness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/kr-level-rr-v026-pit
+    paths:
+      - "kr_level_rr_v026_pit.py"
+      - "kr_level_rr_v025.py"
+      - "requirements-kr.txt"
+      - "noramu_level_rr_v026_kr_pit_spec.md"
+      - ".github/workflows/noramu-kr-v026-pit.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noramu-v026-kr-pit
+  cancel-in-progress: false
+
+jobs:
+  kr-pit-robustness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout v0.26 PIT branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: research/kr-level-rr-v026-pit
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements-kr.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+
+      - name: Frozen PIT self-test
+        run: python kr_level_rr_v026_pit.py --self-test
+
+      - name: Run point-in-time KOSPI/KOSDAQ replication
+        run: |
+          rm -rf kr_pit_output
+          mkdir -p kr_pit_output kr_state_pit
+          python kr_level_rr_v026_pit.py \
+            --outdir kr_pit_output \
+            --state-dir kr_state_pit \
+            --period-60m 730d \
+            --top-n 40
+
+      - name: Verify PIT run
+        run: |
+          test -f kr_pit_output/RUN_VALIDATION.txt
+          grep -q '^PASS' kr_pit_output/RUN_VALIDATION.txt
+          cat kr_pit_output/RUN_VALIDATION.txt
+          echo "--- PIT summary ---"
+          cat kr_pit_output/kr_pit_strategy_summary.csv
+          echo "--- PIT scorecard ---"
+          cat kr_pit_output/kr_pit_scorecard.csv
+          echo "--- v0.25 vs v0.26 ---"
+          cat kr_pit_output/v025_vs_v026_universe_bias_comparison.csv || true
+
+      - name: Upload PIT artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noramu-v026-kr-pit-${{ github.run_number }}
+          path: |
+            kr_pit_output/
+            kr_state_pit/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist PIT universe and result
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add kr_state_pit kr_pit_output
+          if git diff --cached --quiet; then
+            echo "No PIT state/output changes to commit."
+            exit 0
+          fi
+
+          git commit -m "kr: persist v0.26 PIT universe/results [skip ci]"
+
+          for attempt in 1 2 3 4; do
+            git fetch origin research/kr-level-rr-v026-pit
+            if git rebase origin/research/kr-level-rr-v026-pit; then
+              if git push origin HEAD:research/kr-level-rr-v026-pit; then
+                exit 0
+              fi
+            fi
+            git rebase --abort || true
+            echo "PIT persistence retry ${attempt}/4"
+            sleep $((attempt * 2))
+          done
+
+          echo "Unable to persist PIT state after retries."
+          exit 1
