@@ -1,0 +1,96 @@
+name: Dororong US v0.16 BULL Forward Daily Scheduler
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/dororong-us-v016-forward-scheduler.yml"
+  schedule:
+    # 22:00 UTC weekdays = safely after the 16:00 ET US regular-session close
+    # in both daylight-saving and standard time. This is 07:00 KST next day.
+    - cron: "0 22 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dororong-us-v016-forward-daily
+  cancel-in-progress: false
+
+jobs:
+  forward-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TARGET_BRANCH: agent/dororong-us-v016-bull-forward-shadow
+    steps:
+      - name: Checkout frozen v0.16 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate frozen forward configuration
+        run: |
+          python -m py_compile dororong_us_v016_bull_forward_shadow.py
+          python dororong_us_v016_bull_forward_shadow.py --self-test
+
+      - name: Run shadow-only forward observation
+        run: |
+          mkdir -p dororong_us_v016_forward_output
+          python dororong_us_v016_bull_forward_shadow.py \
+            --period-60m 730d \
+            --period-daily 5y \
+            --cache-dir dororong_us_v016_cache \
+            --outdir dororong_us_v016_forward_output
+
+      - name: Verify no-order forward run
+        run: |
+          test -f dororong_us_v016_forward_output/RUN_VALIDATION.txt
+          grep -q '^PASS' dororong_us_v016_forward_output/RUN_VALIDATION.txt
+          grep -q 'SHADOW_ONLY_NO_ORDERS' dororong_us_v016_forward_output/RUN_VALIDATION.txt
+          grep -q 'FORWARD_START_US_DATE=2026-08-11' dororong_us_v016_forward_output/RUN_VALIDATION.txt
+          cat dororong_us_v016_forward_output/forward_state.json
+          cat dororong_us_v016_forward_output/forward_summary.csv
+          if [ -f dororong_us_v016_forward_output/forward_daily_history.csv ]; then
+            cat dororong_us_v016_forward_output/forward_daily_history.csv
+          fi
+
+      - name: Upload observation artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: dororong-us-v016-forward-${{ github.run_number }}
+          path: dororong_us_v016_forward_output/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist observation to frozen research branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dororong_us_v016_forward_output
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "dororong: persist scheduled v0.16 forward observation [skip ci]"
+          for attempt in 1 2 3 4; do
+            git fetch origin "$TARGET_BRANCH"
+            if ! git rebase "origin/$TARGET_BRANCH"; then git rebase --abort || true; exit 1; fi
+            if git push origin "HEAD:$TARGET_BRANCH"; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
