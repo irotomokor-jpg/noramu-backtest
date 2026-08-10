@@ -1,0 +1,25 @@
+{
+  "version": "v0.26-KR-PIT",
+  "pit_date": "2023-08-08",
+  "universe_source": "FinanceData/marcap historical KRX market-cap snapshot",
+  "signal_params": {
+    "pivot_span": 2,
+    "level_lookback": 240,
+    "level_cluster_tol_atr": 0.35,
+    "breakout_buffer_atr": 0.05,
+    "retest_window": 6,
+    "retest_tol_atr": 0.25,
+    "invalid_tol_atr": 0.2,
+    "stop_buffer_atr": 0.25,
+    "signal_cooldown": 10
+  },
+  "signal_params_changed_from_v025": false,
+  "portfolio_logic_changed_from_v025": false,
+  "remaining_biases": [
+    "Yahoo historical intraday availability",
+    "delisted/renamed ticker availability",
+    "fractional shares",
+    "generic cost model"
+  ],
+  "live_approval": false
+}

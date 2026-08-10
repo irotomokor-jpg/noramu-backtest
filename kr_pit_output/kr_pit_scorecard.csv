@@ -1,0 +1,4 @@
+﻿universe,trades,pnl,pf,base_positive_30plus,top3_removed_positive,generic_10bps_positive,status,warning
+KOSPI40_PIT,531,858377.2016925772,1.3815180184181008,1,1,1,PIT_DIRECTIONALLY_SUPPORTED,PIT universe reduces future-selection bias but Yahoo availability/delisting bias remains.
+KOSDAQ40_PIT,517,-66141.39682185906,0.975334141676997,0,0,0,PIT_UNSUPPORTED,PIT universe reduces future-selection bias but Yahoo availability/delisting bias remains.
+KR80_PIT,613,418961.7028961079,1.1492917679277088,1,1,1,PIT_DIRECTIONALLY_SUPPORTED,PIT universe reduces future-selection bias but Yahoo availability/delisting bias remains.

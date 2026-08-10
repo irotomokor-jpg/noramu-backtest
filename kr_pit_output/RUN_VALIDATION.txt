@@ -1,0 +1,5 @@
+PASS
+pit_date=2023-08-08
+resolved_kospi=40
+resolved_kosdaq=36
+PASS means PIT robustness pipeline completed; no live approval.

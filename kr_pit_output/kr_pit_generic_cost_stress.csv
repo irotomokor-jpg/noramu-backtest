@@ -1,0 +1,13 @@
+﻿strategy,generic_bps_side,approx_pnl,approx_return_pct,approx_pf,warning
+KOSPI40_PIT,5,858377.2016925772,0.17167544033851545,1.3815180184181008,generic friction only; not Korean tax/broker execution
+KOSPI40_PIT,10,626700.0664864683,0.12534001329729366,1.263266910198315,generic friction only; not Korean tax/broker execution
+KOSPI40_PIT,15,395022.93128035933,0.07900458625607187,1.1572414378557772,generic friction only; not Korean tax/broker execution
+KOSPI40_PIT,20,163345.7960742505,0.0326691592148501,1.0617381421126233,generic friction only; not Korean tax/broker execution
+KOSDAQ40_PIT,5,-66141.39682185906,-0.013228279364371811,0.975334141676997,generic friction only; not Korean tax/broker execution
+KOSDAQ40_PIT,10,-239435.6462236865,-0.0478871292447373,0.9141896261256337,generic friction only; not Korean tax/broker execution
+KOSDAQ40_PIT,15,-412729.89562551386,-0.08254597912510277,0.8576864173291747,generic friction only; not Korean tax/broker execution
+KOSDAQ40_PIT,20,-586024.1450273411,-0.11720482900546822,0.8053161130800878,generic friction only; not Korean tax/broker execution
+KR80_PIT,5,418961.7028961079,0.08379234057922158,1.1492917679277088,generic friction only; not Korean tax/broker execution
+KR80_PIT,10,162102.28554555474,0.03242045710911095,1.0548609978351107,generic friction only; not Korean tax/broker execution
+KR80_PIT,15,-94757.13180499838,-0.018951426360999675,0.9694903376643076,generic friction only; not Korean tax/broker execution
+KR80_PIT,20,-351616.54915555153,-0.0703233098311103,0.8920948551072297,generic friction only; not Korean tax/broker execution
