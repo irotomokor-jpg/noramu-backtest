@@ -1,0 +1,11 @@
+PASS
+version=v0.32
+us_only=1
+fixed_signal_context=1
+pullback_quantile=0.75
+normal_pullbacks_only_for_calibration=1
+terminal_pullbacks_used_for_calibration=0
+walkforward_asof=1
+selection_uses_2026=0
+live_approval=0
+PASS means the diagnostic pipeline completed, not that a strategy passed.

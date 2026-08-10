@@ -1,0 +1,50 @@
+{
+  "version": "v0.32-US-PRE2-RUNNER-EXIT-DIAGNOSTIC",
+  "us_only": true,
+  "fixed_signal": "DORORONG_PRE2",
+  "fixed_entry": "FULL_NEXT_OPEN_INDEPENDENT_ONE_R",
+  "fixed_structure_exit": true,
+  "fixed_trend": "CLOSE_GT_MA120_GT_MA200_AT_SIGNAL",
+  "fixed_universe": "MONTHLY_DYNAMIC_TOP_50_ASOF",
+  "exit_modes": [
+    "FIXED_1R_2R",
+    "PCT75_RUNNER",
+    "ATR75_RUNNER",
+    "HIGHER_LOW_RUNNER"
+  ],
+  "normal_pullback": "drawdown from prior high that later recovers to a new high",
+  "terminal_pullback_used_for_calibration": false,
+  "pullback_quantile": 0.75,
+  "minimum_prior_recovered_episodes": 30,
+  "walkforward_folds": [
+    {
+      "fold": "2025Q1",
+      "entry_start": "2025-01-01 00:00:00+00:00",
+      "entry_end": "2025-03-31 23:59:59+00:00",
+      "calibration_asof_exclusive": "2025-01-01 00:00:00+00:00"
+    },
+    {
+      "fold": "2025Q2",
+      "entry_start": "2025-04-01 00:00:00+00:00",
+      "entry_end": "2025-06-30 23:59:59+00:00",
+      "calibration_asof_exclusive": "2025-04-01 00:00:00+00:00"
+    },
+    {
+      "fold": "2025Q3",
+      "entry_start": "2025-07-01 00:00:00+00:00",
+      "entry_end": "2025-09-30 23:59:59+00:00",
+      "calibration_asof_exclusive": "2025-07-01 00:00:00+00:00"
+    },
+    {
+      "fold": "2025Q4",
+      "entry_start": "2025-10-01 00:00:00+00:00",
+      "entry_end": "2025-12-31 23:59:59+00:00",
+      "calibration_asof_exclusive": "2025-10-01 00:00:00+00:00"
+    }
+  ],
+  "selection_uses_2026_h1": false,
+  "selection_uses_2026_07_plus": false,
+  "validation_thresholds_frozen_at": "2026-01-01 00:00:00+00:00",
+  "same_bar_order": "known stops before targets; new trails active next bar",
+  "live_approval": false
+}
