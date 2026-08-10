@@ -1,0 +1,4 @@
+﻿universe,trades,pnl,pf,base_positive_30plus,top3_removed_positive,generic_10bps_positive,status,warning
+KOSPI40,520,520585.1946866509,1.2366108248413652,1,1,1,CROSS_MARKET_SIGNAL_SUPPORTED,Not OOS; current-universe survivorship bias; generic costs only.
+KOSDAQ40,486,637316.9685403261,1.2034131218566921,1,1,1,CROSS_MARKET_SIGNAL_SUPPORTED,Not OOS; current-universe survivorship bias; generic costs only.
+KR80,569,811170.530584713,1.2984704895749646,1,1,1,CROSS_MARKET_SIGNAL_SUPPORTED,Not OOS; current-universe survivorship bias; generic costs only.

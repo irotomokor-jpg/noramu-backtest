@@ -1,0 +1,30 @@
+{
+  "version": "v0.25-KR",
+  "frozen_signal_params": {
+    "pivot_span": 2,
+    "level_lookback": 240,
+    "level_cluster_tol_atr": 0.35,
+    "breakout_buffer_atr": 0.05,
+    "retest_window": 6,
+    "retest_tol_atr": 0.25,
+    "invalid_tol_atr": 0.2,
+    "stop_buffer_atr": 0.25,
+    "signal_cooldown": 10
+  },
+  "account": {
+    "starting_equity_krw": 5000000,
+    "gross_cap": 0.8,
+    "fractional_shares_for_comparability": true
+  },
+  "session": {
+    "timezone": "Asia/Seoul",
+    "regular_start": "09:00",
+    "regular_end": "15:30",
+    "native_yahoo_60m": true,
+    "final_bar_may_be_shorter_than_60m": true
+  },
+  "universe_file": "kr_state/kr_universe_v025.csv",
+  "universe_warning": "Current snapshot applied historically; survivorship bias.",
+  "cost_warning": "Baseline/generic bps are structural research friction, not exact Korean taxes/fees.",
+  "live_approval": false
+}

@@ -1,0 +1,4 @@
+PASS
+resolved_kospi=40
+resolved_kosdaq=38
+PASS means KR cross-market research pipeline completed; no live approval.
