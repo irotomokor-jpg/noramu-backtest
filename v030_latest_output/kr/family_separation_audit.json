@@ -1,0 +1,19 @@
+{
+  "version": "v0.30-SOURCE-SEPARATED",
+  "candidate_families": [
+    "DORORONG",
+    "NORAMU"
+  ],
+  "hybrid_or_rsi_candidates": [],
+  "hybrid_candidate_count": 0,
+  "shared_layers_only": [
+    "market data",
+    "whole-share execution",
+    "costs and taxes",
+    "portfolio risk limits",
+    "control exit",
+    "reporting and gates"
+  ],
+  "dororong_post_adoption_used_as_independent_alpha": false,
+  "live_approval": false
+}

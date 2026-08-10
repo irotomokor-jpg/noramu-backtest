@@ -1,0 +1,14 @@
+{
+  "signal_overlap": {
+    "market": "KOSPI",
+    "noramu_signals": 137,
+    "dororong_signals": 2238,
+    "noramu_with_doro_within_24h": 54,
+    "near_overlap_rate": 0.39416058394160586
+  },
+  "validation_pnl_correlation": {
+    "validation_days": 38,
+    "daily_realized_pnl_correlation": 0.22849489121389685
+  },
+  "pre3_shadow_signals": 240
+}

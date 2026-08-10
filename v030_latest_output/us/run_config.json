@@ -1,0 +1,74 @@
+{
+  "version": "v0.30-SOURCE-SEPARATED",
+  "strategies": [
+    {
+      "strategy_id": "NORAMU_C1_SUPPORT_20_20_60",
+      "family": "NORAMU",
+      "signal_key": "NORAMU_C1",
+      "entry_scheme": "A",
+      "development_candidate": true,
+      "source_role": "source signal; source-supported split example; exact add levels are research controls"
+    },
+    {
+      "strategy_id": "NORAMU_C1_RECONFIRM_20_20_60",
+      "family": "NORAMU",
+      "signal_key": "NORAMU_C1",
+      "entry_scheme": "R",
+      "development_candidate": true,
+      "source_role": "source signal; source-supported re-break weighting; exact trigger tolerances are research controls"
+    },
+    {
+      "strategy_id": "NORAMU_C1_STANDARDIZED_FULL",
+      "family": "NORAMU",
+      "signal_key": "NORAMU_C1",
+      "entry_scheme": "FULL",
+      "development_candidate": false,
+      "source_role": "signal-only comparator using the same standardized executor as Dororong"
+    },
+    {
+      "strategy_id": "DORORONG_PRE1_CHANNEL_HL_VOLUME",
+      "family": "DORORONG",
+      "signal_key": "DORORONG_PRE1",
+      "entry_scheme": "FULL",
+      "development_candidate": true,
+      "source_role": "pre-adoption independent concept; numeric channel and volume thresholds are research proxies"
+    },
+    {
+      "strategy_id": "DORORONG_PRE2_BREAK_RETEST",
+      "family": "DORORONG",
+      "signal_key": "DORORONG_PRE2",
+      "entry_scheme": "FULL",
+      "development_candidate": true,
+      "source_role": "pre-adoption independent concept; numeric retest and MA thresholds are research proxies"
+    }
+  ],
+  "control_exit": {
+    "name": "control_1R_2R_26",
+    "target1_r": 1.0,
+    "target2_r": 2.0,
+    "partial_fraction": 0.5,
+    "max_hold": 26,
+    "stop_cap_atr": Infinity,
+    "trail_atr": Infinity,
+    "ma_exit": 0
+  },
+  "selection_uses_2026_07": false,
+  "independent_window_account_reset": true,
+  "noramu_daily_context": "MA60>MA240, rising MA60, Envelope 20/9 touch",
+  "noramu_intraday_structure": "60m box breakout -> retest -> higher-low",
+  "dororong_pre1": "60m channel + higher-low + maintained volume",
+  "dororong_pre2": "60m breakout -> retest + higher-low + volume",
+  "dororong_pre3": "low-volume failed break; shadow only",
+  "research_parameters": {
+    "box_min_bars": 8,
+    "box_max_width_atr": 2.5,
+    "pullback_window_bars": 6,
+    "doro_volume_maintained": 0.8,
+    "doro_channel_location_max": 0.65,
+    "adverse_add_R": [
+      0.4,
+      0.8
+    ]
+  },
+  "live_approval": false
+}
