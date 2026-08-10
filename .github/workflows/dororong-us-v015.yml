@@ -1,0 +1,94 @@
+name: Dororong US v0.15 Market Gate Robustness Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "agent/dororong-us-v015-market-gate-robustness"
+    paths:
+      - "dororong_us_v015_market_gate_robustness.py"
+      - "noramu_dororong_backtest_v092.py"
+      - "noramu_dororong_suboverlay_v011.py"
+      - "noramu_dororong_integrated_v012.py"
+      - "noramu_dororong_integrated_v013.py"
+      - "requirements.txt"
+      - ".github/workflows/dororong-us-v015.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dororong-us-v015-market-gate
+  cancel-in-progress: false
+
+jobs:
+  dororong-v015:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile and self-test
+        run: |
+          python -m py_compile dororong_us_v015_market_gate_robustness.py
+          python dororong_us_v015_market_gate_robustness.py --self-test
+
+      - name: Run frozen market-gate robustness matrix
+        run: |
+          rm -rf dororong_us_v015_output
+          python dororong_us_v015_market_gate_robustness.py \
+            --period-60m 730d \
+            --period-daily 5y \
+            --cache-dir dororong_us_v015_cache \
+            --outdir dororong_us_v015_output
+
+      - name: Verify and print decision
+        run: |
+          test -f dororong_us_v015_output/RUN_VALIDATION.txt
+          grep -q '^PASS' dororong_us_v015_output/RUN_VALIDATION.txt
+          grep -q 'NO_ORDERS' dororong_us_v015_output/RUN_VALIDATION.txt
+          cat dororong_us_v015_output/dororong_v015_scorecard.json
+          cat dororong_us_v015_output/variant_cost_summary.csv
+          cat dororong_us_v015_output/survivor_decisions.csv
+          cat dororong_us_v015_output/july_2026_summary.csv
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dororong-us-v015-${{ github.run_number }}
+          path: dororong_us_v015_output/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist result to Dororong research branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dororong_us_v015_output
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "dororong: persist US v0.15 market-gate results [skip ci]"
+          BRANCH="${GITHUB_REF_NAME}"
+          for attempt in 1 2 3 4; do
+            git fetch origin "$BRANCH"
+            if ! git rebase "origin/$BRANCH"; then git rebase --abort || true; exit 1; fi
+            if git push origin "HEAD:$BRANCH"; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
