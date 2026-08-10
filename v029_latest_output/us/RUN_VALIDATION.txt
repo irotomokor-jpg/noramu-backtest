@@ -1,0 +1,5 @@
+PASS
+version=v0.29
+selection_uses_2026_07=0
+live_approval=0
+PASS means the research pipeline completed, not that the strategy passed.

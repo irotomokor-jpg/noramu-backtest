@@ -1,0 +1,167 @@
+{
+  "version": "v0.29-STAGED-RESEARCH",
+  "exit_specs": [
+    {
+      "name": "baseline_1R_2R_26",
+      "target1_r": 1.0,
+      "target2_r": 2.0,
+      "partial_fraction": 0.5,
+      "max_hold": 26,
+      "stop_cap_atr": Infinity,
+      "trail_atr": Infinity,
+      "ma_exit": 0
+    },
+    {
+      "name": "wider_1p5R_3R",
+      "target1_r": 1.5,
+      "target2_r": 3.0,
+      "partial_fraction": 0.5,
+      "max_hold": 26,
+      "stop_cap_atr": Infinity,
+      "trail_atr": Infinity,
+      "ma_exit": 0
+    },
+    {
+      "name": "full_2R",
+      "target1_r": 2.0,
+      "target2_r": 2.0,
+      "partial_fraction": 1.0,
+      "max_hold": 26,
+      "stop_cap_atr": Infinity,
+      "trail_atr": Infinity,
+      "ma_exit": 0
+    },
+    {
+      "name": "trail_1p5ATR",
+      "target1_r": 1.0,
+      "target2_r": Infinity,
+      "partial_fraction": 0.5,
+      "max_hold": 26,
+      "stop_cap_atr": Infinity,
+      "trail_atr": 1.5,
+      "ma_exit": 0
+    },
+    {
+      "name": "time_12",
+      "target1_r": 1.0,
+      "target2_r": 2.0,
+      "partial_fraction": 0.5,
+      "max_hold": 12,
+      "stop_cap_atr": Infinity,
+      "trail_atr": Infinity,
+      "ma_exit": 0
+    },
+    {
+      "name": "ma32_exit",
+      "target1_r": 1.0,
+      "target2_r": 2.0,
+      "partial_fraction": 0.5,
+      "max_hold": 26,
+      "stop_cap_atr": Infinity,
+      "trail_atr": Infinity,
+      "ma_exit": 32
+    },
+    {
+      "name": "stopcap_1p25ATR",
+      "target1_r": 1.0,
+      "target2_r": 2.0,
+      "partial_fraction": 0.5,
+      "max_hold": 26,
+      "stop_cap_atr": 1.25,
+      "trail_atr": Infinity,
+      "ma_exit": 0
+    },
+    {
+      "name": "combo_cap_trail_time18",
+      "target1_r": 1.0,
+      "target2_r": Infinity,
+      "partial_fraction": 0.5,
+      "max_hold": 18,
+      "stop_cap_atr": 1.25,
+      "trail_atr": 1.5,
+      "ma_exit": 32
+    }
+  ],
+  "filter_specs": [
+    {
+      "name": "v028_strict",
+      "min_risk_pct": 0.012,
+      "min_r_atr": 0.75,
+      "max_tick_r": 0.1,
+      "max_entry_gap_atr": 0.25,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "gap_relaxed_0p50",
+      "min_risk_pct": 0.012,
+      "min_r_atr": 0.75,
+      "max_tick_r": 0.1,
+      "max_entry_gap_atr": 0.5,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "no_entry_gap",
+      "min_risk_pct": 0.012,
+      "min_r_atr": 0.75,
+      "max_tick_r": 0.1,
+      "max_entry_gap_atr": Infinity,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "no_min_risk_pct",
+      "min_risk_pct": 0.0,
+      "min_r_atr": 0.75,
+      "max_tick_r": 0.1,
+      "max_entry_gap_atr": 0.25,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "no_min_r_atr",
+      "min_risk_pct": 0.012,
+      "min_r_atr": 0.0,
+      "max_tick_r": 0.1,
+      "max_entry_gap_atr": 0.25,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "no_tick_burden",
+      "min_risk_pct": 0.012,
+      "min_r_atr": 0.75,
+      "max_tick_r": Infinity,
+      "max_entry_gap_atr": 0.25,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "execution_core",
+      "min_risk_pct": 0.006,
+      "min_r_atr": 0.5,
+      "max_tick_r": 0.15,
+      "max_entry_gap_atr": 0.5,
+      "require_trend_120_200": false
+    },
+    {
+      "name": "execution_core_trend120_200",
+      "min_risk_pct": 0.006,
+      "min_r_atr": 0.5,
+      "max_tick_r": 0.15,
+      "max_entry_gap_atr": 0.5,
+      "require_trend_120_200": true
+    }
+  ],
+  "kr_account_sizes": [
+    5000000,
+    20000000
+  ],
+  "us_account_sizes": [
+    5000,
+    20000
+  ],
+  "slippage_ticks": [
+    0,
+    1,
+    2
+  ],
+  "us_cost_bps_side": 5.0,
+  "selection_uses_stress_window": false,
+  "live_approval": false
+}
