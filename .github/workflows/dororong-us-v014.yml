@@ -1,0 +1,99 @@
+name: Dororong US v0.14 Separate Robustness Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "agent/dororong-us-v014-robustness"
+    paths:
+      - "noramu_dororong_backtest_v092.py"
+      - "noramu_dororong_suboverlay_v011.py"
+      - "noramu_dororong_integrated_v012.py"
+      - "noramu_dororong_integrated_v013.py"
+      - "requirements.txt"
+      - ".github/workflows/dororong-us-v014.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dororong-us-v014-robustness
+  cancel-in-progress: false
+
+jobs:
+  dororong-v014:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile and self-test existing Dororong engine
+        run: |
+          python -m py_compile noramu_dororong_integrated_v013.py
+          python noramu_dororong_integrated_v013.py --self-test
+
+      - name: Run frozen Dororong cost robustness
+        run: |
+          rm -rf dororong_us_v014_output
+          mkdir -p dororong_us_v014_output
+          for COST in 5 10 20 30; do
+            echo "=== COST ${COST} bps/side ==="
+            python noramu_dororong_integrated_v013.py \
+              --period-60m 730d \
+              --period-daily 5y \
+              --cache-dir dororong_us_v014_cache \
+              --outdir "dororong_us_v014_output/${COST}bps" \
+              --cost-bps-side "$COST"
+            test -f "dororong_us_v014_output/${COST}bps/RUN_VALIDATION.txt"
+            grep -q '^PASS' "dororong_us_v014_output/${COST}bps/RUN_VALIDATION.txt"
+          done
+
+      - name: Print core Dororong results
+        run: |
+          for COST in 5 10 20 30; do
+            echo "--- ${COST} bps strategy summary ---"
+            cat "dororong_us_v014_output/${COST}bps/doro_strategy_summary.csv"
+            echo "--- ${COST} bps concentration ---"
+            cat "dororong_us_v014_output/${COST}bps/doro_concentration_checks.csv"
+          done
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dororong-us-v014-${{ github.run_number }}
+          path: dororong_us_v014_output/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist result to Dororong research branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dororong_us_v014_output
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "dororong: persist US v0.14 robustness results [skip ci]"
+          BRANCH="${GITHUB_REF_NAME}"
+          for attempt in 1 2 3 4; do
+            git fetch origin "$BRANCH"
+            if ! git rebase "origin/$BRANCH"; then git rebase --abort || true; exit 1; fi
+            if git push origin "HEAD:$BRANCH"; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
