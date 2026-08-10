@@ -1,0 +1,12 @@
+plan,status_after_v033,scope,next_action
+US_ETF_ALL_ENTRIES,REJECTED,US,stop entry tuning
+KR_ETF_DAILY_5_20_CROSS,RESEARCH_SURVIVOR,KR,test point-in-time portfolio deduplication
+KR_ETF_MA20_RECLAIM,SECONDARY_RESEARCH_SURVIVOR,KR,test point-in-time portfolio deduplication
+ETF_ASSET_60M_120_200_REQUIRED,NOT_ADOPTED,KR_US,do not require at asset entry
+ETF_STRICT_5_20_120_200,REJECTED,KR_US,retain only as recorded context
+ETF_RSI40_45_RECOVERY,INCONCLUSIVE_ZERO_SAMPLE,KR_US,redefine only after KR base portfolio passes
+US_DORORONG_PRE2,REJECTED_V032,US,no further exit tuning
+NORAMU_STRUCTURE_LONG,RESEARCH_HOLD,KR_US,preserve research record
+RSI_STANDALONE_REVERSAL,REJECTED,KR_US,never trade without trend and price confirmation
+BREAKDOWN_RETEST_SHORT,REJECTED_HOLD,KR_US,no live use
+LEVERAGE_INVERSE_HEDGE,DEFERRED,KR_US,exclude until a long-only strategy passes
