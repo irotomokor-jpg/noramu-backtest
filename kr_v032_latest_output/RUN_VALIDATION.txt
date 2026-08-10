@@ -1,0 +1,68 @@
+PASS
+{
+  "version": "v0.32-KR-PORTFOLIO-ROBUSTNESS",
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "clean_unseen_oos_available": false,
+  "frozen_config": "PB_WIDE|FAST|DIRECT|H26",
+  "status": "ROBUSTNESS_SUPPORTED",
+  "baseline_5m1t": {
+    "ending_equity": 5761572.426500001,
+    "return_pct": 0.15231448530000025,
+    "trades": 27,
+    "wins": 14,
+    "losses": 13,
+    "pf": 4.102127428929279,
+    "max_dd_pct": 0.02833554624517176,
+    "commissions": 7465.327499999999,
+    "taxes": 44252.246,
+    "pnl": 761572.4265000003,
+    "trade_trades": 27,
+    "trade_pnl": 761572.4265000003,
+    "trade_pf": 4.102127428929279,
+    "trade_winrate": 0.5185185185185185,
+    "trade_top1_share": 0.33829255129462554,
+    "trade_top3_share": 0.5853311384233535,
+    "trade_residual_top1": 426479.52650000015,
+    "trade_residual_top3": 181777.48900000006,
+    "rejects": 36
+  },
+  "order_tests": {
+    "count": 12,
+    "all_positive": true,
+    "min_pnl": 758252.6265000002,
+    "median_pnl": 786433.9665000002,
+    "min_pf": 4.088604824538402
+  },
+  "universe_tests": {
+    "top_n": [
+      25,
+      30,
+      35,
+      40
+    ],
+    "all_positive": true,
+    "min_pnl": 484838.07000000024
+  },
+  "contributor_exclusion": {
+    "top_symbols": [
+      "006400",
+      "000810",
+      "003490"
+    ],
+    "all_positive": true,
+    "exclude_top3_together_pnl": 185572.35849999986,
+    "baseline_residual_top3_simple": 181777.48900000006
+  },
+  "cost_stress": {
+    "all_0_to_3_tick_positive_5m_and_20m": true,
+    "5m_3t_pnl": 611323.5194999997,
+    "20m_3t_pnl": 2415807.732499998
+  },
+  "time_stability": {
+    "all_calendar_years_positive": true,
+    "positive_quarter_share": 0.7272727272727273,
+    "note": "post-selection stability only; not clean unseen OOS"
+  },
+  "next_required_validation": "freeze parameters and observe a genuinely unseen forward period before any live approval"
+}
