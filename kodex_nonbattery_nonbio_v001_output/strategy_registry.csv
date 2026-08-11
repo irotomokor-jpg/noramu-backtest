@@ -1,0 +1,10 @@
+﻿plan,status_before_v033,reason
+ETF_TREND_CROSS,ACTIVE_V033,ETF long-only trend baseline
+ETF_MA20_RECLAIM,ACTIVE_V033,uptrend pullback and price reclaim
+ETF_RSI_TREND_PULLBACK,ACTIVE_V033,RSI recovery only inside an uptrend
+ETF_STRICT_5_20_120_200,CONTEXT_DIAGNOSTIC,"recorded as context, not separately optimized"
+US_DORORONG_PRE2,REJECTED_V032,entry and regime edge failed development gates
+NORAMU_STRUCTURE_LONG,RESEARCH_HOLD,preserved but not a live candidate
+RSI_STANDALONE_REVERSAL,REJECTED,oversold alone is not an entry
+BREAKDOWN_RETEST_SHORT,REJECTED_HOLD,pilot and later evidence did not establish edge
+LEVERAGE_INVERSE_HEDGE,DEFERRED,excluded until a long-only base strategy passes
