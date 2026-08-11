@@ -5,6 +5,7 @@ on:
     branches: [agent/trading-engine-v003-toss-market-data]
     paths:
       - 'toss_market_data_adapter_v001.py'
+      - 'toss_market_data_adapter_v002.py'
       - 'toss_market_data_adapter_validation.py'
       - 'toss_live_readonly_smoke.py'
       - '.github/workflows/trading-engine-v003-toss-market-data.yml'
@@ -27,17 +28,19 @@ jobs:
       - name: Install dependencies
         run: pip install -U pandas requests
       - name: Compile
-        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
+        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
       - name: Offline adapter self-test
-        run: python toss_market_data_adapter_v001.py --self-test
+        run: |
+          python toss_market_data_adapter_v001.py --self-test
+          python toss_market_data_adapter_v002.py
       - name: Mock API validation
         run: python toss_market_data_adapter_validation.py
       - name: Safety assertions
         run: |
           grep -q 'MARKET_DATA_ONLY_NO_ORDERS' toss_market_data_adapter_v001.py
           grep -q 'LIVE_APPROVAL = False' toss_market_data_adapter_v001.py
-          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
-          ! grep -Rni 'X-Tossinvest-Account' toss_market_data_adapter_v001.py toss_live_readonly_smoke.py
+          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
+          ! grep -Rni 'X-Tossinvest-Account' toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_live_readonly_smoke.py
       - name: Live read-only staged smoke
         id: live_smoke
         continue-on-error: true
