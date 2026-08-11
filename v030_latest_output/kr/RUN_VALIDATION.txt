@@ -1,0 +1,9 @@
+PASS
+version=v0.30
+source_families_separated=1
+hybrid_candidates=0
+rsi_candidates=0
+selection_uses_2026_07=0
+independent_window_account_reset=1
+live_approval=0
+PASS means the research pipeline completed, not that a strategy passed.

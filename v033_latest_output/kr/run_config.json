@@ -1,0 +1,52 @@
+{
+  "args": {
+    "markets": "KR",
+    "outdir": "v033_kr_output",
+    "cache_dir": "v033_kr_cache",
+    "period_daily": "5y",
+    "period_60m": "730d",
+    "min_us_coverage": 18,
+    "min_kr_coverage": 12,
+    "refresh": false,
+    "self_test": false
+  },
+  "universes": {
+    "KR": [
+      "069500.KS",
+      "102110.KS",
+      "278530.KS",
+      "229200.KS",
+      "232080.KS",
+      "091160.KS",
+      "396500.KS",
+      "091180.KS",
+      "091170.KS",
+      "266420.KS",
+      "305720.KS",
+      "305540.KS",
+      "117700.KS",
+      "117680.KS",
+      "140700.KS",
+      "139260.KS",
+      "139220.KS",
+      "139270.KS"
+    ]
+  },
+  "benchmarks": {
+    "KR": "069500.KS"
+  },
+  "entry_modes": [
+    "DAILY_5_20_CROSS",
+    "CROSS_60M_REGIME",
+    "MA20_RECLAIM_60M",
+    "RSI40_45_RECOVERY_60M"
+  ],
+  "base_cost": {
+    "label": "BASE_5BP_SIDE",
+    "bps_each_side": 5.0
+  },
+  "stress_cost": {
+    "label": "STRESS_10BP_SIDE",
+    "bps_each_side": 10.0
+  }
+}

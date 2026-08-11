@@ -1,0 +1,14 @@
+{
+  "signal_overlap": {
+    "market": "KOSDAQ",
+    "noramu_signals": 112,
+    "dororong_signals": 1889,
+    "noramu_with_doro_within_24h": 43,
+    "near_overlap_rate": 0.38392857142857145
+  },
+  "validation_pnl_correlation": {
+    "validation_days": 40,
+    "daily_realized_pnl_correlation": 0.03108836272805304
+  },
+  "pre3_shadow_signals": 146
+}

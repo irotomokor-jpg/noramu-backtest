@@ -1,0 +1,207 @@
+{
+  "version": "v0.31-SIGNAL-EDGE-DIAGNOSTIC",
+  "selection_window": "through 2025-12-31 only",
+  "validation_window": "2026-01-01 through 2026-06-30",
+  "locked_stress_window": "2026-07-01 onward",
+  "markets": [
+    {
+      "market": "US",
+      "loaded_tickers": 118,
+      "dynamic_top_n": 50,
+      "canonical_signal_counts": {
+        "NORAMU_C1": 86,
+        "DORORONG_PRE1": 2634,
+        "DORORONG_PRE2": 7245
+      },
+      "selected_families": [
+        {
+          "family": "NORAMU",
+          "selected_on": "DEVELOPMENT_TO_2025_ONLY",
+          "selected_variant": {
+            "variant_id": "NORAMU_C1|S_R_20_20_60|STRUCTURE_CLOSE|ALL|ALL_LOADED",
+            "signal_key": "NORAMU_C1",
+            "entry_scheme": "S_R_20_20_60",
+            "exit_mode": "STRUCTURE_CLOSE",
+            "trend_mode": "ALL",
+            "universe_mode": "ALL_LOADED",
+            "selection_tier": 1,
+            "selection_score": 0.030647037108647076
+          },
+          "development_1tick": {
+            "trades": 59,
+            "wins": 18,
+            "losses": 41,
+            "sum_net_r": 0.23540435877185595,
+            "mean_net_r": 0.00398990438596366,
+            "median_net_r": -0.046390414015955894,
+            "pf": 1.0461422273809446,
+            "winrate": 0.3050847457627119,
+            "avg_win_r": 0.2965064687536968,
+            "avg_loss_r": 0.12443200192182162,
+            "max_drawdown_r": 2.304064547392061,
+            "mean_ci95_low": -0.07387649248416621,
+            "mean_ci95_high": 0.08185630125609354,
+            "top3_ticker_r": 2.942193876399394,
+            "residual_ex_top3_r": -2.706789517627538
+          },
+          "validation_2026_h1_1tick": {
+            "trades": 20,
+            "wins": 9,
+            "losses": 11,
+            "sum_net_r": 0.7694776669806034,
+            "mean_net_r": 0.038473883349030166,
+            "median_net_r": -0.043882437579287004,
+            "pf": 1.418139378462793,
+            "winrate": 0.45,
+            "avg_win_r": 0.28996885743498374,
+            "avg_loss_r": 0.16729473181220458,
+            "max_drawdown_r": 1.3706261565306574,
+            "mean_ci95_low": -0.12015357623287538,
+            "mean_ci95_high": 0.19710134293093573,
+            "top3_ticker_r": 2.182240349287314,
+            "residual_ex_top3_r": -1.4127626823067105
+          },
+          "locked_stress_2026_07_plus_2tick": {
+            "trades": 7,
+            "wins": 0,
+            "losses": 7,
+            "sum_net_r": -1.1966185138041627,
+            "mean_net_r": -0.17094550197202324,
+            "median_net_r": -0.11958828261613386,
+            "pf": 0.0,
+            "winrate": 0.0,
+            "avg_win_r": 0.0,
+            "avg_loss_r": 0.17094550197202324,
+            "max_drawdown_r": 1.1966185138041627,
+            "mean_ci95_low": -0.29290435550282407,
+            "mean_ci95_high": -0.0489866484412224,
+            "top3_ticker_r": -0.5218906284427987,
+            "residual_ex_top3_r": -0.6747278853613641
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        },
+        {
+          "family": "DORORONG",
+          "selected_on": "DEVELOPMENT_TO_2025_ONLY",
+          "selected_variant": {
+            "variant_id": "DORORONG_PRE2|FULL|STRUCTURE_CLOSE|MA120_200|DYNAMIC_TOP",
+            "signal_key": "DORORONG_PRE2",
+            "entry_scheme": "FULL",
+            "exit_mode": "STRUCTURE_CLOSE",
+            "trend_mode": "MA120_200",
+            "universe_mode": "DYNAMIC_TOP",
+            "selection_tier": 2,
+            "selection_score": 1.5703252163452788
+          },
+          "development_1tick": {
+            "trades": 1567,
+            "wins": 503,
+            "losses": 1064,
+            "sum_net_r": 62.16187459959512,
+            "mean_net_r": 0.03966935200995222,
+            "median_net_r": -0.2787751870925117,
+            "pf": 1.13380596756966,
+            "winrate": 0.3209955328653478,
+            "avg_win_r": 1.0471752605949802,
+            "avg_loss_r": 0.4366233848493233,
+            "max_drawdown_r": 39.90126191327198,
+            "mean_ci95_low": 0.001065276037356247,
+            "mean_ci95_high": 0.07827342798254819,
+            "top3_ticker_r": 25.503575630948966,
+            "residual_ex_top3_r": 36.65829896864616
+          },
+          "validation_2026_h1_1tick": {
+            "trades": 332,
+            "wins": 112,
+            "losses": 220,
+            "sum_net_r": 20.61963339055655,
+            "mean_net_r": 0.06210732948962817,
+            "median_net_r": -0.26508316258960285,
+            "pf": 1.2225794305910669,
+            "winrate": 0.3373493975903614,
+            "avg_win_r": 1.0112417100573092,
+            "avg_loss_r": 0.4210883551630095,
+            "max_drawdown_r": 16.42235017949407,
+            "mean_ci95_low": -0.020990140993428975,
+            "mean_ci95_high": 0.14520479997268532,
+            "top3_ticker_r": 18.979896934899777,
+            "residual_ex_top3_r": 1.6397364556567737
+          },
+          "locked_stress_2026_07_plus_2tick": {
+            "trades": 55,
+            "wins": 18,
+            "losses": 37,
+            "sum_net_r": -3.070884206737804,
+            "mean_net_r": -0.05583425830432371,
+            "median_net_r": -0.28054975144584837,
+            "pf": 0.7864413062597533,
+            "winrate": 0.32727272727272727,
+            "avg_win_r": 0.6282608475923498,
+            "avg_loss_r": 0.3886372827945973,
+            "max_drawdown_r": 8.61418795784692,
+            "mean_ci95_low": -0.21188885520025777,
+            "mean_ci95_high": 0.10022033859161036,
+            "top3_ticker_r": 4.665930064265466,
+            "residual_ex_top3_r": -7.73681427100327
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        }
+      ],
+      "pre3_shadow": [
+        {
+          "window": "DEVELOPMENT_TO_2025",
+          "signals": 2065,
+          "available_5bar": 2065,
+          "mean_short_return_5bar": 0.00019157745938006536,
+          "positive_rate_5bar": 0.48426150121065376,
+          "available_10bar": 2065,
+          "mean_short_return_10bar": 0.000963909061285798,
+          "positive_rate_10bar": 0.4716707021791768,
+          "available_26bar": 2065,
+          "mean_short_return_26bar": -0.0004384903275969991,
+          "positive_rate_26bar": 0.46973365617433416
+        },
+        {
+          "window": "STRESS_2026_07_PLUS",
+          "signals": 86,
+          "available_5bar": 84,
+          "mean_short_return_5bar": -0.005111114756534528,
+          "positive_rate_5bar": 0.36904761904761907,
+          "available_10bar": 84,
+          "mean_short_return_10bar": -0.005169294497043695,
+          "positive_rate_10bar": 0.36904761904761907,
+          "available_26bar": 75,
+          "mean_short_return_26bar": 0.003662993678685007,
+          "positive_rate_26bar": 0.5466666666666666
+        },
+        {
+          "window": "VALIDATION_2026_H1",
+          "signals": 419,
+          "available_5bar": 419,
+          "mean_short_return_5bar": 0.0003027741945724402,
+          "positive_rate_5bar": 0.5083532219570406,
+          "available_10bar": 419,
+          "mean_short_return_10bar": 0.0028238189052817875,
+          "positive_rate_10bar": 0.522673031026253,
+          "available_26bar": 419,
+          "mean_short_return_26bar": 0.004147590452985775,
+          "positive_rate_26bar": 0.5107398568019093
+        }
+      ],
+      "live_approval": false
+    }
+  ],
+  "all_selected_families_passed": false,
+  "live_approval": false,
+  "limitations": [
+    "Yahoo 60-minute data is not execution-grade",
+    "Dynamic membership is point-in-time only within each loaded superset",
+    "KR superset starts from a 2023-08-08 market-cap snapshot",
+    "US superset is a frozen current/recent list, not historical membership",
+    "Fractional shares are intentional for one-R signal diagnostics",
+    "PRE3 and the conditional hedge are shadow diagnostics only",
+    "No live orders are implemented"
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "version": "v0.29-STAGED-RESEARCH",
+  "development_end": "2025-12-31 23:59:59+00:00",
+  "validation": "2026-01-01 through 2026-06-30",
+  "locked_stress": "2026-07-01 onward",
+  "markets": [
+    {
+      "market": "KOSPI",
+      "chosen_exit": "combo_cap_trail_time18",
+      "chosen_filter": "no_min_risk_pct",
+      "selection_window": "through 2025-12-31 only",
+      "validation_2026_h1": {
+        "market": "KOSPI",
+        "capital": 5000000.0,
+        "slippage_ticks": 1,
+        "window": "VALIDATION_2026_H1",
+        "trades": 14,
+        "wins": 6,
+        "losses": 8,
+        "pnl": -24659.712500000343,
+        "return_pct": -0.004931942500000064,
+        "pf": 0.4902058586593695,
+        "winrate": 0.42857142857142855,
+        "avg_win": 3952.031666666657,
+        "avg_loss": 6046.487812500036,
+        "payoff_ratio": 0.653607811545826,
+        "max_dd_pct": 0.007025570499111344
+      },
+      "stress_2026_07_plus_2tick": {
+        "market": "KOSPI",
+        "capital": 5000000.0,
+        "slippage_ticks": 2,
+        "window": "STRESS_2026_07_PLUS",
+        "trades": 10,
+        "wins": 6,
+        "losses": 4,
+        "pnl": 9496.248999999967,
+        "return_pct": 0.0018992497999998914,
+        "pf": 1.3481640063915146,
+        "winrate": 0.6,
+        "avg_win": 6128.577750000001,
+        "avg_loss": 6818.804375000011,
+        "payoff_ratio": 0.8987760042610097,
+        "max_dd_pct": 0.0025041898574349464
+      },
+      "concentration": {
+        "top3_pnl": 47236.992499999964,
+        "residual_pnl": -81576.57500000055,
+        "residual_positive": false
+      },
+      "status": "RESEARCH_GATE_FAIL",
+      "live_approval": false
+    },
+    {
+      "market": "KOSDAQ",
+      "chosen_exit": "trail_1p5ATR",
+      "chosen_filter": "no_min_r_atr",
+      "selection_window": "through 2025-12-31 only",
+      "validation_2026_h1": {
+        "market": "KOSDAQ",
+        "capital": 5000000.0,
+        "slippage_ticks": 1,
+        "window": "VALIDATION_2026_H1",
+        "trades": 19,
+        "wins": 8,
+        "losses": 11,
+        "pnl": -42305.23299999982,
+        "return_pct": -0.008461046600000022,
+        "pf": 0.7753369585196813,
+        "winrate": 0.42105263157894735,
+        "avg_win": 18250.003687500037,
+        "avg_loss": 17118.66022727274,
+        "payoff_ratio": 1.0660883179645617,
+        "max_dd_pct": 0.0244200626157135
+      },
+      "stress_2026_07_plus_2tick": {
+        "market": "KOSDAQ",
+        "capital": 5000000.0,
+        "slippage_ticks": 2,
+        "window": "STRESS_2026_07_PLUS",
+        "trades": 7,
+        "wins": 4,
+        "losses": 3,
+        "pnl": -61114.785499999874,
+        "return_pct": -0.012222957100000098,
+        "pf": 0.2599538299903159,
+        "winrate": 0.5714285714285714,
+        "avg_win": 5366.902499999998,
+        "avg_loss": 27527.46516666662,
+        "payoff_ratio": 0.19496537249273693,
+        "max_dd_pct": 0.00923629578262164
+      },
+      "concentration": {
+        "top3_pnl": 202476.79399999982,
+        "residual_pnl": -31129.59649999984,
+        "residual_positive": false
+      },
+      "status": "RESEARCH_GATE_FAIL",
+      "live_approval": false
+    }
+  ],
+  "all_markets_passed": false,
+  "live_approval": false,
+  "limitations": [
+    "Yahoo 60m data is not execution-grade",
+    "KR PIT universe still has delisting/data-availability bias",
+    "US147 is a frozen current/recent universe, not historical point-in-time",
+    "US cost is a conservative research assumption, not a broker invoice",
+    "No live orders are implemented"
+  ]
+}

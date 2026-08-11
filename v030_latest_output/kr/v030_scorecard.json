@@ -1,0 +1,262 @@
+{
+  "version": "v0.30-SOURCE-SEPARATED",
+  "development_end": "2025-12-31 23:59:59+00:00",
+  "validation": "2026-01-01 through 2026-06-30",
+  "locked_stress": "2026-07-01 onward; never used for selection",
+  "window_account_state": "development, validation and stress each start from fresh equity",
+  "markets": [
+    {
+      "market": "KOSPI",
+      "families": [
+        {
+          "family": "NORAMU",
+          "selected_strategy": "NORAMU_C1_RECONFIRM_20_20_60",
+          "selection_window": "through 2025-12-31 only",
+          "development_score": -1.577474422367915,
+          "validation_2026_h1_1tick": {
+            "trades": 2,
+            "wins": 0,
+            "losses": 2,
+            "pnl": -47213.31999999999,
+            "return_pct": -0.009442663999999823,
+            "pf": 0.0,
+            "winrate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": 23606.659999999996,
+            "payoff_ratio": 0.0,
+            "max_dd_pct": 0.00993845118143255
+          },
+          "stress_2026_07_plus_2tick": {
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "pnl": 0.0,
+            "return_pct": 0.0,
+            "pf": NaN,
+            "winrate": NaN,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+            "payoff_ratio": NaN,
+            "max_dd_pct": 0.0
+          },
+          "larger_account_validation_1tick": {
+            "trades": 7,
+            "wins": 1,
+            "losses": 6,
+            "pnl": -229697.0350000006,
+            "return_pct": -0.011484851750000025,
+            "pf": 0.025273412321437174,
+            "winrate": 0.14285714285714285,
+            "avg_win": 5955.75,
+            "avg_loss": 39275.46416666677,
+            "payoff_ratio": 0.15164047392862304,
+            "max_dd_pct": 0.013362764033187813
+          },
+          "validation_concentration": {
+            "top3_pnl": -47213.31999999999,
+            "residual_pnl": 0.0,
+            "residual_positive": false
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        },
+        {
+          "family": "DORORONG",
+          "selected_strategy": "DORORONG_PRE2_BREAK_RETEST",
+          "selection_window": "through 2025-12-31 only",
+          "development_score": -1.4303184335707413,
+          "validation_2026_h1_1tick": {
+            "trades": 41,
+            "wins": 23,
+            "losses": 18,
+            "pnl": 108969.09350000026,
+            "return_pct": 0.021793818699999523,
+            "pf": 1.2406726254873004,
+            "winrate": 0.5609756097560976,
+            "avg_win": 24423.39347826088,
+            "avg_loss": 25153.830916666666,
+            "payoff_ratio": 0.9709611851639742,
+            "max_dd_pct": 0.05653946637487106
+          },
+          "stress_2026_07_plus_2tick": {
+            "trades": 10,
+            "wins": 6,
+            "losses": 4,
+            "pnl": 86177.78000000003,
+            "return_pct": 0.01723555599999993,
+            "pf": 2.146247711070037,
+            "winrate": 0.6,
+            "avg_win": 26893.381666666653,
+            "avg_loss": 18795.627499999973,
+            "payoff_ratio": 1.4308318073800246,
+            "max_dd_pct": 0.01736685555344264
+          },
+          "larger_account_validation_1tick": {
+            "trades": 49,
+            "wins": 24,
+            "losses": 25,
+            "pnl": -133414.875500001,
+            "return_pct": -0.006670743775000432,
+            "pf": 0.9443443959361644,
+            "winrate": 0.4897959183673469,
+            "avg_win": 94322.32995833333,
+            "avg_loss": 95886.03178000003,
+            "payoff_ratio": 0.9836920791001712,
+            "max_dd_pct": 0.06141904515903318
+          },
+          "validation_concentration": {
+            "top3_pnl": 228692.94000000012,
+            "residual_pnl": -119723.84649999984,
+            "residual_positive": false
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        }
+      ],
+      "signal_overlap": {
+        "market": "KOSPI",
+        "noramu_signals": 137,
+        "dororong_signals": 2238,
+        "noramu_with_doro_within_24h": 54,
+        "near_overlap_rate": 0.39416058394160586
+      },
+      "validation_pnl_correlation": {
+        "validation_days": 38,
+        "daily_realized_pnl_correlation": 0.22849489121389685
+      },
+      "pre3_shadow_signals": 240
+    },
+    {
+      "market": "KOSDAQ",
+      "families": [
+        {
+          "family": "NORAMU",
+          "selected_strategy": "NORAMU_C1_RECONFIRM_20_20_60",
+          "selection_window": "through 2025-12-31 only",
+          "development_score": 0.7189965309693375,
+          "validation_2026_h1_1tick": {
+            "trades": 5,
+            "wins": 2,
+            "losses": 3,
+            "pnl": 22233.457499999924,
+            "return_pct": 0.0044466915000000995,
+            "pf": 2.1195962577158505,
+            "winrate": 0.4,
+            "avg_win": 21045.95874999997,
+            "avg_loss": 6619.486666666671,
+            "payoff_ratio": 3.179394386573776,
+            "max_dd_pct": 0.0053839724702565706
+          },
+          "stress_2026_07_plus_2tick": {
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "pnl": 0.0,
+            "return_pct": 0.0,
+            "pf": NaN,
+            "winrate": NaN,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+            "payoff_ratio": NaN,
+            "max_dd_pct": 0.0
+          },
+          "larger_account_validation_1tick": {
+            "trades": 7,
+            "wins": 4,
+            "losses": 3,
+            "pnl": 226653.37749999954,
+            "return_pct": 0.011332668875000396,
+            "pf": 2.8592776840496428,
+            "winrate": 0.5714285714285714,
+            "avg_win": 87139.34312499993,
+            "avg_loss": 40634.66500000006,
+            "payoff_ratio": 2.1444582630372317,
+            "max_dd_pct": 0.006502306580188022
+          },
+          "validation_concentration": {
+            "top3_pnl": 36888.91749999993,
+            "residual_pnl": -14655.460000000006,
+            "residual_positive": false
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        },
+        {
+          "family": "DORORONG",
+          "selected_strategy": "DORORONG_PRE2_BREAK_RETEST",
+          "selection_window": "through 2025-12-31 only",
+          "development_score": -1.383200293174963,
+          "validation_2026_h1_1tick": {
+            "trades": 45,
+            "wins": 22,
+            "losses": 23,
+            "pnl": -174395.5379999999,
+            "return_pct": -0.03487910760000046,
+            "pf": 0.7269435181180337,
+            "winrate": 0.4888888888888889,
+            "avg_win": 21103.809909090924,
+            "avg_loss": 27768.667652173925,
+            "payoff_ratio": 0.7599864053052171,
+            "max_dd_pct": 0.05753218594158904
+          },
+          "stress_2026_07_plus_2tick": {
+            "trades": 11,
+            "wins": 3,
+            "losses": 8,
+            "pnl": -144308.5124999998,
+            "return_pct": -0.028861702499999864,
+            "pf": 0.22609880381667982,
+            "winrate": 0.2727272727272727,
+            "avg_win": 14053.46583333337,
+            "avg_loss": 23308.61374999999,
+            "payoff_ratio": 0.6029301435111463,
+            "max_dd_pct": 0.037323925772182465
+          },
+          "larger_account_validation_1tick": {
+            "trades": 52,
+            "wins": 22,
+            "losses": 30,
+            "pnl": -1424999.0349999992,
+            "return_pct": -0.0712499517499996,
+            "pf": 0.4960617129001572,
+            "winrate": 0.4230769230769231,
+            "avg_win": 63760.28395454543,
+            "avg_loss": 94257.50939999995,
+            "payoff_ratio": 0.6764477903183963,
+            "max_dd_pct": 0.0803669808596128
+          },
+          "validation_concentration": {
+            "top3_pnl": 148840.0154999999,
+            "residual_pnl": -323235.5534999998,
+            "residual_positive": false
+          },
+          "status": "RESEARCH_GATE_FAIL",
+          "live_approval": false
+        }
+      ],
+      "signal_overlap": {
+        "market": "KOSDAQ",
+        "noramu_signals": 112,
+        "dororong_signals": 1889,
+        "noramu_with_doro_within_24h": 43,
+        "near_overlap_rate": 0.38392857142857145
+      },
+      "validation_pnl_correlation": {
+        "validation_days": 40,
+        "daily_realized_pnl_correlation": 0.03108836272805304
+      },
+      "pre3_shadow_signals": 146
+    }
+  ],
+  "all_selected_families_passed": false,
+  "live_approval": false,
+  "limitations": [
+    "Yahoo 60m data is not execution-grade",
+    "KR PIT universe still has delisting/data-availability bias",
+    "US147 is a frozen current/recent universe, not historical point-in-time",
+    "Noramu exact box/ATR/add thresholds remain research implementations",
+    "Dororong exact trendline/touch/volume thresholds remain research proxies",
+    "Dororong PRE3 is shadow-only because a complete short rule is not source-fixed",
+    "No live orders are implemented"
+  ]
+}

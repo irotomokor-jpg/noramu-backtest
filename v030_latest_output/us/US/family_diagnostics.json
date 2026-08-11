@@ -1,0 +1,14 @@
+{
+  "signal_overlap": {
+    "market": "US",
+    "noramu_signals": 116,
+    "dororong_signals": 6744,
+    "noramu_with_doro_within_24h": 48,
+    "near_overlap_rate": 0.41379310344827586
+  },
+  "validation_pnl_correlation": {
+    "validation_days": 71,
+    "daily_realized_pnl_correlation": 0.0748716517534732
+  },
+  "pre3_shadow_signals": 2096
+}

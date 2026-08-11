@@ -1,0 +1,12 @@
+PASS v0.33 pipeline and anti-leakage contract
+etf_long_only=1
+entry_modes_independent=1
+common_exit_across_modes=1
+relative_strength_asof_prior_month=1
+signal_close_entry_next_open=1
+intraday_120_200_context=1
+rsi_standalone_allowed=0
+fixed_profit_target=0
+selection_uses_2026=0
+leverage_inverse_short=0
+live_approval=0

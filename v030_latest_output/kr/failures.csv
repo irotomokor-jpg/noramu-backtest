@@ -1,0 +1,5 @@
+﻿market,ticker,error
+KOSDAQ,048260.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
+KOSDAQ,440110.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
+KOSDAQ,034230.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
+KOSDAQ,085370.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')

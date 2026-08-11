@@ -1,0 +1,56 @@
+{
+  "args": {
+    "markets": "US",
+    "outdir": "v033_us_output",
+    "cache_dir": "v033_us_cache",
+    "period_daily": "5y",
+    "period_60m": "730d",
+    "min_us_coverage": 18,
+    "min_kr_coverage": 12,
+    "refresh": false,
+    "self_test": false
+  },
+  "universes": {
+    "US": [
+      "SPY",
+      "QQQ",
+      "DIA",
+      "IWM",
+      "RSP",
+      "VTI",
+      "XLK",
+      "XLC",
+      "XLY",
+      "XLP",
+      "XLF",
+      "XLI",
+      "XLB",
+      "XLE",
+      "XLV",
+      "XLU",
+      "XLRE",
+      "SOXX",
+      "SMH",
+      "IHI",
+      "XBI",
+      "KRE"
+    ]
+  },
+  "benchmarks": {
+    "US": "SPY"
+  },
+  "entry_modes": [
+    "DAILY_5_20_CROSS",
+    "CROSS_60M_REGIME",
+    "MA20_RECLAIM_60M",
+    "RSI40_45_RECOVERY_60M"
+  ],
+  "base_cost": {
+    "label": "BASE_5BP_SIDE",
+    "bps_each_side": 5.0
+  },
+  "stress_cost": {
+    "label": "STRESS_10BP_SIDE",
+    "bps_each_side": 10.0
+  }
+}

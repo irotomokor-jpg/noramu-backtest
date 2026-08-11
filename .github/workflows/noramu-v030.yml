@@ -1,0 +1,118 @@
+name: Noramu and Dororong v0.30 Separated Research
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "noramu_dororong_v030_separated.py"
+      - "V030_PROTOCOL.md"
+      - "requirements.txt"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-v030.yml"
+  push:
+    branches: [main]
+    paths:
+      - "noramu_dororong_v030_separated.py"
+      - "V030_PROTOCOL.md"
+      - "requirements.txt"
+      - "requirements-kr.txt"
+      - ".github/workflows/noramu-v030.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-separated-v030-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  kr-v030:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-kr.txt
+      - name: Install KR dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+      - name: Compile and self-test
+        run: |
+          python -m py_compile noramu_dororong_v030_separated.py
+          python noramu_dororong_v030_separated.py --self-test
+      - name: Run KOSPI and KOSDAQ independently
+        run: |
+          mkdir -p v030_kr_output v030_cache kr_state_pit
+          python noramu_dororong_v030_separated.py \
+            --markets KOSPI,KOSDAQ \
+            --outdir v030_kr_output \
+            --cache-dir v030_cache \
+            --state-dir kr_state_pit \
+            --period-60m 730d \
+            --period-daily 5y \
+            --top-n 40 \
+            --min-market-coverage 30
+      - name: Verify KR separation and output
+        run: |
+          grep -q '^PASS' v030_kr_output/RUN_VALIDATION.txt
+          grep -q '^source_families_separated=1' v030_kr_output/RUN_VALIDATION.txt
+          grep -q '^hybrid_candidates=0' v030_kr_output/RUN_VALIDATION.txt
+          grep -q '^rsi_candidates=0' v030_kr_output/RUN_VALIDATION.txt
+          grep -q '^independent_window_account_reset=1' v030_kr_output/RUN_VALIDATION.txt
+          cat v030_kr_output/v030_scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-separated-v030-kr-${{ github.run_number }}
+          path: v030_kr_output/
+          if-no-files-found: warn
+          retention-days: 90
+
+  us-v030:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install US dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile and self-test
+        run: |
+          python -m py_compile noramu_dororong_v030_separated.py
+          python noramu_dororong_v030_separated.py --self-test
+      - name: Run US independently
+        run: |
+          mkdir -p v030_us_output v030_cache
+          python noramu_dororong_v030_separated.py \
+            --markets US \
+            --outdir v030_us_output \
+            --cache-dir v030_cache \
+            --us-period-60m 730d \
+            --period-daily 5y \
+            --us-top-n 80 \
+            --min-us-coverage 65
+      - name: Verify US separation and output
+        run: |
+          grep -q '^PASS' v030_us_output/RUN_VALIDATION.txt
+          grep -q '^source_families_separated=1' v030_us_output/RUN_VALIDATION.txt
+          grep -q '^hybrid_candidates=0' v030_us_output/RUN_VALIDATION.txt
+          grep -q '^rsi_candidates=0' v030_us_output/RUN_VALIDATION.txt
+          grep -q '^independent_window_account_reset=1' v030_us_output/RUN_VALIDATION.txt
+          cat v030_us_output/v030_scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-separated-v030-us-${{ github.run_number }}
+          path: v030_us_output/
+          if-no-files-found: warn
+          retention-days: 90
