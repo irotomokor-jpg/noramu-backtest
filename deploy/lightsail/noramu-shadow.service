@@ -1,0 +1,29 @@
+[Unit]
+Description=Noramu Toss Read-Only Shadow Feed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=noramu
+Group=noramu
+WorkingDirectory=/opt/noramu-shadow
+EnvironmentFile=/etc/noramu-shadow/toss.env
+ExecStart=/opt/noramu-shadow/.venv/bin/python /opt/noramu-shadow/toss_shadow_daemon_v001.py --root /var/lib/noramu-shadow
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/noramu-shadow
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target
