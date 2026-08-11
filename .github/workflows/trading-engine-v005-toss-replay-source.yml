@@ -1,0 +1,76 @@
+name: Trading Engine v0.05 Toss Replay Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/trading-engine-v005-toss-replay-source
+    paths:
+      - 'toss_replay_source_v001.py'
+      - 'toss_replay_source_validation.py'
+      - 'toss_replay_bars_v001.py'
+      - 'toss_history_depth_fast_v002.py'
+      - 'toss_stage_b1_known_trade_audit_v001.py'
+      - 'toss_stage_b1_known_trade_audit_v002.py'
+      - 'toss_causal_replay_clock_v001.py'
+      - 'toss_sqlite_cache_v001.py'
+      - 'toss_noramu_candidate_compile_v001.py'
+      - 'toss_noramu_raw_windows_v001.py'
+      - 'toss_noramu_strict_execution_v001.py'
+      - 'toss_noramu_full_replay_pipeline_v001.py'
+      - 'TOSS_REPLAY_REVALIDATION_PLAN_v001.md'
+      - '.github/workflows/trading-engine-v005-toss-replay-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas requests
+      - name: Compile
+        run: python -m py_compile toss_replay_source_v001.py toss_replay_source_validation.py toss_replay_bars_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py toss_noramu_raw_windows_v001.py toss_noramu_strict_execution_v001.py toss_noramu_full_replay_pipeline_v001.py
+      - name: Source self-test
+        run: python toss_replay_source_v001.py --self-test
+      - name: Pagination validation
+        run: python toss_replay_source_validation.py
+      - name: Session anchored bars self-test
+        run: python toss_replay_bars_v001.py --self-test
+      - name: Strict 1m causal clock self-test
+        run: python toss_causal_replay_clock_v001.py
+      - name: SQLite replay cache self-test
+        run: python toss_sqlite_cache_v001.py --self-test
+      - name: Noramu candidate compiler self-test
+        run: python toss_noramu_candidate_compile_v001.py --self-test
+      - name: Noramu raw-window planner self-test
+        run: python toss_noramu_raw_windows_v001.py --self-test
+      - name: Noramu strict 1m execution self-test
+        run: python toss_noramu_strict_execution_v001.py --self-test
+      - name: Noramu full pipeline self-test
+        run: python toss_noramu_full_replay_pipeline_v001.py --self-test
+      - name: Safety assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          files='toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py toss_noramu_raw_windows_v001.py toss_noramu_strict_execution_v001.py toss_noramu_full_replay_pipeline_v001.py'
+          grep -q 'TOSS_REPLAY_READ_ONLY_NO_ORDERS' toss_replay_source_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_replay_source_v001.py
+          grep -q 'NO_ORDERS' toss_causal_replay_clock_v001.py
+          grep -q 'NO_ORDERS' toss_sqlite_cache_v001.py
+          grep -q 'NO_ORDERS' toss_noramu_candidate_compile_v001.py
+          grep -q 'NO_ORDERS' toss_noramu_raw_windows_v001.py
+          grep -q 'NO_ORDERS' toss_noramu_strict_execution_v001.py
+          grep -q 'NO_ORDERS' toss_noramu_full_replay_pipeline_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' $files
+          ! grep -q 'X-Tossinvest-Account' $files
+          ! grep -Eq 'TOSS_CLIENT_(ID|SECRET)[[:space:]]*=[[:space:]]*["'"'][^"'"']+["'"']' $files
+          echo 'SAFETY=PASS'
+      - name: Live probe intentionally disabled on GitHub-hosted runner
+        run: |
+          echo 'TOSS_LIVE_DEPTH_PROBE=SKIPPED_GITHUB_HOSTED_IP_NOT_ALLOWLISTED'
+          echo 'Run Toss live replay audit only from a Toss IP-authorized host.'
