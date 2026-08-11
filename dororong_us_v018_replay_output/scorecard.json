@@ -1,0 +1,81 @@
+{
+  "version": "v0.18-DORORONG-US-JUL01-AUG10-CAUSAL-REPLAY-AUDIT",
+  "purpose": "EXECUTION_AUDIT_NOT_OOS",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "frozen_strategy": "DORO_D1_AGG+BULL",
+  "replay_start": "2026-07-01 00:00:00-04:00",
+  "replay_end_exclusive": "2026-08-11 00:00:00-04:00",
+  "universe_count": 27,
+  "coverage": 1.0,
+  "setup_count": 8,
+  "results": [
+    {
+      "cost_bps_side": 5.0,
+      "closed_trades": 7,
+      "wins": 7,
+      "losses": 0,
+      "pnl": 30.47078290351689,
+      "ending_equity": 5030.470782903516,
+      "return_pct": 0.006094156580703114,
+      "pf": Infinity,
+      "max_dd": 0.004975126703126387,
+      "fees": 2.824438967071191
+    },
+    {
+      "cost_bps_side": 10.0,
+      "closed_trades": 7,
+      "wins": 6,
+      "losses": 1,
+      "pnl": 27.639392521207157,
+      "ending_equity": 5027.639392521209,
+      "return_pct": 0.0055278785042416345,
+      "pf": 105.22603038655704,
+      "max_dd": 0.005155315764655111,
+      "fees": 5.647756779230605
+    },
+    {
+      "cost_bps_side": 20.0,
+      "closed_trades": 7,
+      "wins": 6,
+      "losses": 1,
+      "pnl": 21.979979317284318,
+      "ending_equity": 5021.979979317285,
+      "return_pct": 0.0043959958634569585,
+      "pf": 21.519944986569428,
+      "max_dd": 0.005515720110380151,
+      "fees": 11.291030198235578
+    },
+    {
+      "cost_bps_side": 30.0,
+      "closed_trades": 7,
+      "wins": 5,
+      "losses": 2,
+      "pnl": 16.32505409394068,
+      "ending_equity": 5016.325054093938,
+      "return_pct": 0.003265010818787495,
+      "pf": 7.05835248690752,
+      "max_dd": 0.005876159443426232,
+      "fees": 16.92982277525834
+    }
+  ],
+  "minute_coverage": {
+    "traded_tickers": 5,
+    "one_minute_tickers": 0,
+    "fallback_tickers": 5,
+    "missing_tickers": 0
+  },
+  "program_contract_outputs": [
+    "replay_event_log.csv",
+    "minute_execution_audit.csv",
+    "setup_replay_audit.csv"
+  ],
+  "note": "Seen-history replay: use for execution/state-machine design, never for parameter retuning.",
+  "expanded_window": "2026-07-01 through 2026-08-10 America/New_York",
+  "extra_outputs": [
+    "replay_daily_summary.csv",
+    "replay_monthly_summary.csv",
+    "intraday_fidelity_by_day.csv"
+  ],
+  "interpretation": "SEEN_HISTORY_EXECUTION_AUDIT_ONLY_NOT_FORWARD_NOT_TUNING"
+}
