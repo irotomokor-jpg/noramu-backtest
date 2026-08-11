@@ -6,6 +6,8 @@ on:
       - 'toss_shadow_daemon_v001.py'
       - 'toss_market_data_adapter_v001.py'
       - 'toss_market_data_adapter_v002.py'
+      - 'shadow_runtime_driver_v001.py'
+      - 'trading_engine_v002_shadow.py'
       - 'deploy/lightsail/**'
       - '.github/workflows/trading-engine-v004-fixed-ip-shadow-host.yml'
   workflow_dispatch:
@@ -25,15 +27,28 @@ jobs:
       - name: Install dependencies
         run: pip install -U pandas requests
       - name: Compile
-        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_shadow_daemon_v001.py
+        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_shadow_daemon_v001.py shadow_runtime_driver_v001.py trading_engine_v002_shadow.py
       - name: Adapter compatibility self-test
         run: python toss_market_data_adapter_v002.py
       - name: Shadow daemon self-test
         run: python toss_shadow_daemon_v001.py --self-test
+      - name: Runtime BAR envelope compatibility
+        run: |
+          python - <<'PY'
+          from toss_market_data_adapter_v002 import NormalizedBar
+          from toss_shadow_daemon_v001 import _runtime_bar_event
+          from shadow_runtime_driver_v001 import bar_from
+          b = NormalizedBar('005930','2026-08-11T09:00:00+09:00','1m',100,102,99,101,123,'KRW')
+          ev = _runtime_bar_event('KR', b)
+          rb = bar_from(ev['bar'])
+          assert rb.ticker == '005930' and rb.fidelity == 'TOSS_1M' and rb.close == 101
+          print('RUNTIME_BAR_ENVELOPE=PASS')
+          PY
       - name: Shell syntax
         run: |
           bash -n deploy/lightsail/bootstrap.sh
           bash -n deploy/lightsail/healthcheck.sh
+          bash -n deploy/lightsail/create_instance_cloudshell.sh
       - name: Read-only safety assertions
         run: |
           grep -q 'FIXED_IP_SHADOW_FEED_NO_ORDERS' toss_shadow_daemon_v001.py
