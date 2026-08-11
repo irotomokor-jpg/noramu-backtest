@@ -12,6 +12,7 @@ on:
       - 'leveraged_etf_sleeve_plan_v001.py'
       - 'toss_leveraged_etf_causal_replay_v001.py'
       - 'toss_extended_session_probe_v001.py'
+      - 'extended_session_feature_policy_v001.py'
       - '.github/workflows/unified-market-universe-v001.yml'
 
 permissions:
@@ -27,7 +28,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -U pandas requests
       - name: Compile
-        run: python -m py_compile unified_market_universe_plan_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py
+        run: python -m py_compile unified_market_universe_plan_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py
       - name: Universe self-test
         run: python unified_market_universe_plan_v001.py --self-test
       - name: Leveraged ETF plan self-test
@@ -36,6 +37,8 @@ jobs:
         run: python toss_leveraged_etf_causal_replay_v001.py --self-test
       - name: Extended-session probe self-test
         run: python toss_extended_session_probe_v001.py --self-test
+      - name: Extended-session feature policy self-test
+        run: python extended_session_feature_policy_v001.py
       - name: Build plans
         run: |
           python unified_market_universe_plan_v001.py --out /tmp/unified_plan.json
@@ -44,12 +47,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          files='unified_market_universe_plan_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py'
+          files='unified_market_universe_plan_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py'
           grep -q 'NO_ORDERS' unified_market_universe_plan_v001.py
           grep -q 'LIVE_APPROVAL = False' unified_market_universe_plan_v001.py
           grep -q 'NO_ORDERS' leveraged_etf_sleeve_plan_v001.py
           grep -q 'NO_ORDERS' toss_leveraged_etf_causal_replay_v001.py
           grep -q 'NO_ORDERS' toss_extended_session_probe_v001.py
+          grep -q 'NO_ORDERS' extended_session_feature_policy_v001.py
           ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' $files
           ! grep -q 'X-Tossinvest-Account' $files
           echo 'SAFETY=PASS'
