@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import sys
 
-from toss_market_data_adapter_v001 import TossMarketDataClient, TossAPIError, READ_ONLY_MODE, LIVE_APPROVAL
+from toss_market_data_adapter_v002 import TossMarketDataClient, TossAPIError, READ_ONLY_MODE, LIVE_APPROVAL
 
 OUT = Path("toss_live_smoke_result.json")
 
