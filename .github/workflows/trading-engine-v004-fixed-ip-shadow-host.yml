@@ -1,0 +1,46 @@
+name: Trading Engine v0.04 Fixed-IP Shadow Host
+on:
+  push:
+    branches: [agent/trading-engine-v004-fixed-ip-shadow-host]
+    paths:
+      - 'toss_shadow_daemon_v001.py'
+      - 'toss_market_data_adapter_v001.py'
+      - 'toss_market_data_adapter_v002.py'
+      - 'deploy/lightsail/**'
+      - '.github/workflows/trading-engine-v004-fixed-ip-shadow-host.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/trading-engine-v004-fixed-ip-shadow-host
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -U pandas requests
+      - name: Compile
+        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_v002.py toss_shadow_daemon_v001.py
+      - name: Adapter compatibility self-test
+        run: python toss_market_data_adapter_v002.py
+      - name: Shadow daemon self-test
+        run: python toss_shadow_daemon_v001.py --self-test
+      - name: Shell syntax
+        run: |
+          bash -n deploy/lightsail/bootstrap.sh
+          bash -n deploy/lightsail/healthcheck.sh
+      - name: Read-only safety assertions
+        run: |
+          grep -q 'FIXED_IP_SHADOW_FEED_NO_ORDERS' toss_shadow_daemon_v001.py
+          grep -q 'LIVE_APPROVAL is not False' toss_shadow_daemon_v001.py
+          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_shadow_daemon_v001.py deploy/lightsail
+          ! grep -Rni 'X-Tossinvest-Account' toss_shadow_daemon_v001.py deploy/lightsail
+          ! grep -RniE 'place_order|send_order|broker.*(buy|sell)|live_order' toss_shadow_daemon_v001.py deploy/lightsail
+      - name: Secret hygiene
+        run: |
+          ! grep -RniE 'TOSS_CLIENT_ID=[^R][^E][^P]|TOSS_CLIENT_SECRET=[^R][^E][^P]' deploy/lightsail/toss.env.example
