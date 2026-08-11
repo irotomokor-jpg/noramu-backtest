@@ -92,8 +92,8 @@
   "minute_coverage": {
     "traded_tickers": 1,
     "one_minute_tickers": 0,
-    "fallback_tickers": 0,
-    "missing_tickers": 1
+    "fallback_tickers": 1,
+    "missing_tickers": 0
   },
   "program_contract_outputs": [
     "replay_event_log.csv",
