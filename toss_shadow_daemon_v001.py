@@ -5,7 +5,7 @@
 MARKET DATA ONLY. NO ACCOUNT OR ORDER ENDPOINTS.
 - Polls 1-minute candles from Toss REST API.
 - Deduplicates bars across restarts.
-- Persists normalized BAR events to JSONL.
+- Persists runtime-compatible BAR events to JSONL.
 - Writes a health/status JSON file.
 - Keeps all credentials in environment variables only.
 
@@ -14,7 +14,6 @@ This daemon intentionally does NOT place, modify, cancel, or inspect orders.
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from datetime import datetime, time as dtime
 import json
 import os
@@ -28,6 +27,7 @@ from zoneinfo import ZoneInfo
 from toss_market_data_adapter_v002 import (
     TossMarketDataClient,
     TossAPIError,
+    NormalizedBar,
     normalize_candles,
     READ_ONLY_MODE,
     LIVE_APPROVAL,
@@ -74,12 +74,36 @@ def _market_open(market: str, now_utc: datetime) -> bool:
         z = now_utc.astimezone(KST)
         if z.weekday() >= 5:
             return False
-        # Regular KRX window + small warmup/close buffer. Market calendar validation is separate.
         return dtime(8, 50) <= z.time() <= dtime(15, 40)
     z = now_utc.astimezone(ET)
     if z.weekday() >= 5:
         return False
     return dtime(9, 20) <= z.time() <= dtime(16, 10)
+
+
+def _runtime_bar_event(market: str, b: NormalizedBar) -> dict:
+    """Envelope expected by shadow_runtime_driver_v001.py."""
+    return {
+        "type": "BAR",
+        "bar": {
+            "ticker": b.symbol,
+            "time": b.timestamp,
+            "interval": b.interval,
+            "open": b.open,
+            "high": b.high,
+            "low": b.low,
+            "close": b.close,
+            "fidelity": "TOSS_1M",
+        },
+        "meta": {
+            "market": market,
+            "volume": b.volume,
+            "currency": b.currency,
+            "source": b.source,
+            "ingested_at": datetime.now().astimezone().isoformat(),
+            "mode": DAEMON_MODE,
+        },
+    }
 
 
 def _append_events(path: Path, events: list[dict]) -> None:
@@ -118,16 +142,7 @@ class ShadowFeedDaemon:
         fresh = [b for b in bars if b.timestamp > last]
         if fresh:
             self.state.setdefault("last_ts", {})[key] = fresh[-1].timestamp
-        out = []
-        for b in fresh:
-            ev = b.runtime_event()
-            ev["market"] = market
-            ev["volume"] = b.volume
-            ev["currency"] = b.currency
-            ev["ingested_at"] = datetime.now().astimezone().isoformat()
-            ev["mode"] = DAEMON_MODE
-            out.append(ev)
-        return out
+        return [_runtime_bar_event(market, b) for b in fresh]
 
     def cycle(self) -> dict:
         now_utc = datetime.now(ZoneInfo("UTC"))
@@ -190,6 +205,11 @@ def self_test() -> None:
     assert _market_open("KR", datetime(2026, 8, 11, 1, 0, tzinfo=ZoneInfo("UTC"))) is True
     assert _market_open("US", datetime(2026, 8, 11, 14, 0, tzinfo=ZoneInfo("UTC"))) is True
     assert _market_open("US", datetime(2026, 8, 9, 14, 0, tzinfo=ZoneInfo("UTC"))) is False
+    sample = NormalizedBar("005930", "2026-08-11T09:00:00+09:00", "1m", 100, 102, 99, 101, 123, "KRW")
+    ev = _runtime_bar_event("KR", sample)
+    assert ev["type"] == "BAR"
+    assert set(ev["bar"]) == {"ticker","time","interval","open","high","low","close","fidelity"}
+    assert ev["bar"]["ticker"] == "005930" and ev["bar"]["fidelity"] == "TOSS_1M"
     print("TOSS_SHADOW_DAEMON_SELF_TEST=PASS")
 
 
