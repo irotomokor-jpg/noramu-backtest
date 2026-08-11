@@ -13,6 +13,8 @@ on:
       - 'toss_stage_b1_known_trade_audit_v001.py'
       - 'toss_stage_b1_known_trade_audit_v002.py'
       - 'toss_causal_replay_clock_v001.py'
+      - 'toss_sqlite_cache_v001.py'
+      - 'toss_noramu_candidate_compile_v001.py'
       - 'TOSS_REPLAY_REVALIDATION_PLAN_v001.md'
       - '.github/workflows/trading-engine-v005-toss-replay-source.yml'
 
@@ -29,7 +31,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -U pandas requests
       - name: Compile
-        run: python -m py_compile toss_replay_source_v001.py toss_replay_source_validation.py toss_replay_bars_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py
+        run: python -m py_compile toss_replay_source_v001.py toss_replay_source_validation.py toss_replay_bars_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py
       - name: Source self-test
         run: python toss_replay_source_v001.py --self-test
       - name: Pagination validation
@@ -38,6 +40,10 @@ jobs:
         run: python toss_replay_bars_v001.py --self-test
       - name: Strict 1m causal clock self-test
         run: python toss_causal_replay_clock_v001.py
+      - name: SQLite replay cache self-test
+        run: python toss_sqlite_cache_v001.py --self-test
+      - name: Noramu candidate compiler self-test
+        run: python toss_noramu_candidate_compile_v001.py --self-test
       - name: Safety assertions
         shell: bash
         run: |
@@ -48,9 +54,11 @@ jobs:
           grep -q 'NO ORDERS' toss_stage_b1_known_trade_audit_v001.py
           grep -q 'NO ORDERS' toss_stage_b1_known_trade_audit_v002.py
           grep -q 'NO_ORDERS' toss_causal_replay_clock_v001.py
-          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py
-          ! grep -q 'X-Tossinvest-Account' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py
-          ! grep -Eq 'TOSS_CLIENT_(ID|SECRET)[[:space:]]*=[[:space:]]*["'"'][^"'"']+["'"']' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py
+          grep -q 'NO_ORDERS' toss_sqlite_cache_v001.py
+          grep -q 'NO_ORDERS' toss_noramu_candidate_compile_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py
+          ! grep -q 'X-Tossinvest-Account' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py
+          ! grep -Eq 'TOSS_CLIENT_(ID|SECRET)[[:space:]]*=[[:space:]]*["'"'][^"'"']+["'"']' toss_replay_source_v001.py toss_history_depth_fast_v002.py toss_stage_b1_known_trade_audit_v001.py toss_stage_b1_known_trade_audit_v002.py toss_causal_replay_clock_v001.py toss_sqlite_cache_v001.py toss_noramu_candidate_compile_v001.py
           echo 'SAFETY=PASS'
       - name: Live probe intentionally disabled on GitHub-hosted runner
         run: |
