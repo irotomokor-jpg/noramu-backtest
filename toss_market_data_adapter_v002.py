@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Toss market-data adapter v0.02 compatibility layer.
 
-Fixes the live OAuth envelope observed on 2026-08-11 where `result` is the
-access-token string itself. Remains strictly read-only market data.
+Handles live OAuth success/error envelope variants while remaining strictly
+read-only market data.
 """
 from __future__ import annotations
 
@@ -24,10 +24,47 @@ from toss_market_data_adapter_v001 import (
 
 class TossMarketDataClient(_V1Client):
     @staticmethod
+    def _payload(response) -> dict[str, Any]:
+        try:
+            body = response.json()
+        except Exception as exc:
+            raise TossAPIError(response.status_code, "invalid-json", str(exc), response.headers.get("X-Request-Id", ""))
+
+        if response.status_code >= 400:
+            request_id = ""
+            try:
+                request_id = response.headers.get("X-Request-Id", "")
+            except Exception:
+                pass
+            if isinstance(body, dict):
+                err = body.get("error", {})
+                if isinstance(err, dict):
+                    raise TossAPIError(
+                        response.status_code,
+                        str(err.get("code", "http-error")),
+                        str(err.get("message", body)),
+                        str(err.get("requestId", request_id)),
+                    )
+                # OAuth servers commonly return {error: "invalid_client", error_description: "..."}.
+                if isinstance(err, str):
+                    raise TossAPIError(
+                        response.status_code,
+                        err,
+                        str(body.get("error_description") or body.get("message") or err),
+                        request_id,
+                    )
+                raise TossAPIError(response.status_code, "http-error", str(body), request_id)
+            raise TossAPIError(response.status_code, "http-error", str(body), request_id)
+
+        if not isinstance(body, dict):
+            raise TossAPIError(response.status_code, "invalid-envelope", "response is not an object")
+        return body
+
+    @staticmethod
     def _token_from_body(body: dict[str, Any]) -> tuple[str, int]:
         result = body.get("result")
 
-        # Actual Toss live response observed: {"result": "<access-token>"}
+        # Supported live shape: {"result": "<access-token>"}
         if isinstance(result, str):
             token = result.strip()
             if not token:
