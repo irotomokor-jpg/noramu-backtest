@@ -8,18 +8,24 @@ TossReplayClient and reuses the durable SQLite cache from toss_sqlite_cache_v001
 Broad historical 1m collection is intentionally chunked because the Toss candle
 endpoint returns the full historical minute stream (including extended-session
 bars observed empirically) and has no regular-session-only selector.
+
+A stock-level Toss 404 is isolated to that dataset instead of terminating the
+whole broad-universe batch. If pages were already cached, a 404 while paging
+backwards is treated as an available-history boundary; if no pages exist, the
+symbol is recorded as unavailable. All other API errors still fail fast.
 """
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
 
 import pandas as pd
 
-from toss_replay_source_v001 import TossReplayClient
-from toss_sqlite_cache_v001 import db_connect, cache_range
+from toss_replay_source_v001 import TossReplayClient, TossReplayError
+from toss_sqlite_cache_v001 import db_connect, cache_range, dataset_key
 
 MODE = "TOSS_UNIFIED_ADJUSTED_CACHE_READ_ONLY_NO_ORDERS"
 LIVE_APPROVAL = False
@@ -59,8 +65,6 @@ def estimate(z: pd.DataFrame, start: str, end: str, gap_seconds: float) -> dict:
     a = pd.Timestamp(start); b = pd.Timestamp(end)
     if b <= a:
         raise ValueError("end must be after start")
-    # Business-day count is deliberately an upper-ish planning approximation;
-    # exchange holidays reduce actual pages while sparse minutes can reduce them further.
     days = max(1, int(len(pd.bdate_range(a.normalize().tz_localize(None), b.normalize().tz_localize(None)))))
     rows = []
     for market, g in z.groupby("market"):
@@ -73,6 +77,38 @@ def estimate(z: pd.DataFrame, start: str, end: str, gap_seconds: float) -> dict:
     return {"rows":rows,"estimated_pages":sum(x["estimated_pages"] for x in rows),
             "estimated_serial_hours":sum(x["estimated_serial_hours"] for x in rows),
             "chart_gap_seconds":gap_seconds}
+
+
+def _cache_state_for(con, *, kind: str, symbol: str, adjusted: bool, start: str, end: str) -> dict:
+    key = dataset_key(kind, symbol, adjusted, start, end)
+    con.row_factory = __import__("sqlite3").Row
+    row = con.execute("SELECT * FROM cache_state WHERE dataset_key=?", (key,)).fetchone()
+    con.row_factory = None
+    return dict(row) if row is not None else {}
+
+
+def _terminalize_stock_404(con, *, symbol: str, start: str, end: str, exc: TossReplayError) -> dict:
+    """Convert a stock candle 404 into a dataset-local terminal state.
+
+    Existing pages imply the paginator reached the symbol's available-history
+    boundary. Zero pages imply Toss cannot resolve the symbol for this request.
+    """
+    st = _cache_state_for(con, kind="stock", symbol=symbol, adjusted=True, start=start, end=end)
+    pages = int(st.get("pages", 0) or 0)
+    stored = int(st.get("stored_rows", 0) or 0)
+    reason = "HISTORY_BOUNDARY_404" if pages > 0 else "STOCK_NOT_FOUND_404"
+    key = dataset_key("stock", symbol, True, start, end)
+    now = datetime.now(timezone.utc).isoformat()
+    con.execute(
+        "UPDATE cache_state SET done=1, stop_reason=?, updated_at=? WHERE dataset_key=?",
+        (f"{reason}:{getattr(exc, 'code', '')}", now, key),
+    )
+    con.commit()
+    st = _cache_state_for(con, kind="stock", symbol=symbol, adjusted=True, start=start, end=end)
+    if not st:
+        st = {"done": 1, "pages": pages, "stored_rows": stored,
+              "stop_reason": f"{reason}:{getattr(exc, 'code', '')}"}
+    return st
 
 
 def run(a) -> dict:
@@ -105,11 +141,23 @@ def run(a) -> dict:
     for i, r in z.reset_index(drop=True).iterrows():
         sym = str(r.symbol).zfill(6) if r.market == "KR" else str(r.symbol).upper()
         print(f"\nUNIFIED_ADJ {i+1}/{len(z)} {r.market} {sym} {r.sleeves}", flush=True)
-        st = cache_range(con, client, kind="stock", symbol=sym, adjusted=True,
-                         start=a.start, end=a.end, max_pages=a.max_pages, progress_every=a.progress_every)
-        results.append({"market":r.market,"symbol":sym,"sleeves":r.sleeves,
-                        "done":int(st.get("done",0)),"pages":int(st.get("pages",0)),
-                        "stored_rows":int(st.get("stored_rows",0)),"stop_reason":st.get("stop_reason")})
+        try:
+            st = cache_range(con, client, kind="stock", symbol=sym, adjusted=True,
+                             start=a.start, end=a.end, max_pages=a.max_pages, progress_every=a.progress_every)
+            results.append({"market":r.market,"symbol":sym,"sleeves":r.sleeves,
+                            "done":int(st.get("done",0)),"pages":int(st.get("pages",0)),
+                            "stored_rows":int(st.get("stored_rows",0)),"stop_reason":st.get("stop_reason"),
+                            "error":""})
+        except TossReplayError as e:
+            if int(getattr(e, "status", 0) or 0) != 404:
+                raise
+            st = _terminalize_stock_404(con, symbol=sym, start=a.start, end=a.end, exc=e)
+            reason = str(st.get("stop_reason") or "STOCK_404")
+            print(f"SKIP_DATASET_404 market={r.market} symbol={sym} reason={reason} error={e}", flush=True)
+            results.append({"market":r.market,"symbol":sym,"sleeves":r.sleeves,
+                            "done":1,"pages":int(st.get("pages",0) or 0),
+                            "stored_rows":int(st.get("stored_rows",0) or 0),"stop_reason":reason,
+                            "error":str(e)})
 
     if a.include_indicators:
         markets = set(z.market.astype(str))
@@ -120,11 +168,12 @@ def run(a) -> dict:
                                  start=a.start, end=a.end, max_pages=a.max_pages, progress_every=a.progress_every)
                 results.append({"market":"KR","symbol":ind,"sleeves":"REGIME_INDICATOR","done":int(st.get("done",0)),
                                 "pages":int(st.get("pages",0)),"stored_rows":int(st.get("stored_rows",0)),
-                                "stop_reason":st.get("stop_reason")})
+                                "stop_reason":st.get("stop_reason"),"error":""})
     candle_rows = int(con.execute("SELECT COUNT(*) FROM candles").fetchone()[0])
     con.close()
     state = {**plan, "execute": True, "datasets":results, "done":int(sum(x["done"] for x in results)),
-             "dataset_count":len(results),"sqlite_candle_rows":candle_rows}
+             "dataset_count":len(results),"sqlite_candle_rows":candle_rows,
+             "dataset_404_count":int(sum("404" in str(x.get("stop_reason","")) for x in results))}
     out = Path(a.outdir); out.mkdir(parents=True, exist_ok=True)
     (out / f"chunk_{a.chunk_index:03d}_state.json").write_text(json.dumps(state,ensure_ascii=False,indent=2,default=str),encoding="utf-8")
     pd.DataFrame(results).to_csv(out / f"chunk_{a.chunk_index:03d}_datasets.csv", index=False, encoding="utf-8-sig")
@@ -135,6 +184,7 @@ def run(a) -> dict:
 
 def self_test() -> None:
     import tempfile
+    from types import SimpleNamespace
     assert MODE.endswith("NO_ORDERS") and LIVE_APPROVAL is False
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)/"m.csv"
@@ -147,6 +197,11 @@ def self_test() -> None:
         z2=load_manifest(p); c=select_chunk(z2,0,2); assert len(c)==2
         e=estimate(z2,"2026-01-01T00:00:00+00:00","2026-01-10T00:00:00+00:00",.4)
         assert e["estimated_pages"]>0
+        con=db_connect(Path(td)/"x.sqlite")
+        fake=SimpleNamespace(status=404, code="stock-not-found")
+        st=_terminalize_stock_404(con,symbol="005930",start="2026-01-01T00:00:00+00:00",end="2026-01-10T00:00:00+00:00",exc=fake)
+        assert int(st.get("done",1)) == 1
+        con.close()
     print("TOSS_UNIFIED_ADJUSTED_CACHE_V001_SELF_TEST=PASS")
 
 
