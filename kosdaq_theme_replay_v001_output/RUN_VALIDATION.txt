@@ -1,0 +1,43 @@
+PASS
+{
+  "version": "KOSDAQ_THEME_REPLAY_V001",
+  "purpose": "KOSDAQ_THEME_APPLICABILITY_REPLAY",
+  "replay_window": [
+    "2026-01-01 00:00:00+09:00",
+    "2026-08-11 00:00:00+09:00"
+  ],
+  "structure": "LEVEL_RR->v028->PULLBACK->PB_WIDE->KOSDAQ_FAST->DIRECT->H26->TRAIL_P70",
+  "frozen_noramu_v035_equivalent": false,
+  "difference_from_v035": "fixed thematic KOSDAQ universe and KOSDAQ/theme-breadth regime instead of annual KOSPI top40 PIT universe",
+  "usable_tickers": 19,
+  "final_candidate_count": 11,
+  "theme_not_tested": {
+    "CONVENIENCE_STORE": "NO_CLEAN_DIRECT_KOSDAQ_SAMPLE_IN_V001"
+  },
+  "results": {
+    "5m_1t": {
+      "trades": 8,
+      "wins": 4,
+      "pnl": 320336.6096499999,
+      "pf": 4.7430152073426965,
+      "rejects": 3
+    },
+    "5m_3t": {
+      "trades": 8,
+      "wins": 4,
+      "pnl": 275331.78165000037,
+      "pf": 3.7390576428414177,
+      "rejects": 3
+    },
+    "20m_1t": {
+      "trades": 8,
+      "wins": 4,
+      "pnl": 1325277.5834999993,
+      "pf": 4.861737261627604,
+      "rejects": 3
+    }
+  },
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "interpretation": "seen-history research only; do not tune from this replay and do not merge into frozen Noramu v0.35"
+}
