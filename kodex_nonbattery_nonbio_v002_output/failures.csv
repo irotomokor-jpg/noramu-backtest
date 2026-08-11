@@ -1,0 +1,3 @@
+﻿market,ticker,stage,error
+KR,471990.KS,DOWNLOAD_PREPARE,ValueError('empty daily=658 60m=0')
+KR,487240.KS,DOWNLOAD_PREPARE,ValueError('empty daily=505 60m=0')

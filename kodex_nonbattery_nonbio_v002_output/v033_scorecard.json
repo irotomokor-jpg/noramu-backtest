@@ -1,0 +1,57 @@
+{
+  "version": "KODEX_NONBATTERY_NONBIO_V002_EXPANDED",
+  "purpose": "ETF_TREND_AND_PULLBACK_ENTRY_COMPARISON",
+  "entry_modes": [
+    "DAILY_5_20_CROSS",
+    "MA20_RECLAIM_60M"
+  ],
+  "development_window": [
+    "2024-09-01",
+    "2025-12-31"
+  ],
+  "validation_window": [
+    "2026-01-01",
+    "2026-06-30"
+  ],
+  "locked_stress_start": "2026-07-01",
+  "selection_uses_2026": false,
+  "cost_models": [
+    {
+      "label": "BASE_5BP_SIDE",
+      "bps_each_side": 5.0
+    },
+    {
+      "label": "STRESS_10BP_SIDE",
+      "bps_each_side": 10.0
+    }
+  ],
+  "markets": [
+    {
+      "market": "KR",
+      "universe_requested": 12,
+      "usable_coverage": 10,
+      "selected_entry_mode": "DAILY_5_20_CROSS",
+      "selection_reason": "NO_PASS_FALLBACK_DIAGNOSTIC_ONLY",
+      "development_gate_pass": false,
+      "locked_gate_pass": false,
+      "locked_gate_failures": [
+        "DEVELOPMENT_GATE_FAIL",
+        "VALIDATION_TRADES_LT_15",
+        "STRESS_DOUBLE_COST_NEGATIVE"
+      ],
+      "status": "RESEARCH_GATE_FAIL",
+      "live_approval": false
+    }
+  ],
+  "status": "RESEARCH_GATE_FAIL",
+  "live_approval": false,
+  "limitations": [
+    "Yahoo data is not execution-grade",
+    "current static ETF universe creates survivorship and availability bias",
+    "KR and US symbol histories may differ around mergers or ticker changes",
+    "60-minute history is limited to the provider lookback",
+    "2026 windows were previously observed and are locked diagnostics, not pristine holdouts",
+    "passing research gates would still require 30-50 paper trades and 6-8 weeks",
+    "no live orders are implemented"
+  ]
+}
