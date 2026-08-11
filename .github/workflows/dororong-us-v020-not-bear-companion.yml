@@ -1,4 +1,5 @@
 name: Dororong US v0.20 NOT_BEAR Companion Replay
+# Isolated companion comparison; frozen BULL v0.16 remains unchanged.
 on:
   workflow_dispatch:
   push:
