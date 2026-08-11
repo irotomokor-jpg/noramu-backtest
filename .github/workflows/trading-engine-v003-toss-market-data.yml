@@ -6,6 +6,7 @@ on:
     paths:
       - 'toss_market_data_adapter_v001.py'
       - 'toss_market_data_adapter_validation.py'
+      - 'toss_live_readonly_smoke.py'
       - '.github/workflows/trading-engine-v003-toss-market-data.yml'
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: pip install -U pandas requests
       - name: Compile
-        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py
+        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
       - name: Offline adapter self-test
         run: python toss_market_data_adapter_v001.py --self-test
       - name: Mock API validation
@@ -35,15 +36,39 @@ jobs:
         run: |
           grep -q 'MARKET_DATA_ONLY_NO_ORDERS' toss_market_data_adapter_v001.py
           grep -q 'LIVE_APPROVAL = False' toss_market_data_adapter_v001.py
-          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py
-          ! grep -Rni 'X-Tossinvest-Account' toss_market_data_adapter_v001.py
-      - name: Optional live read-only smoke
+          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py toss_live_readonly_smoke.py
+          ! grep -Rni 'X-Tossinvest-Account' toss_market_data_adapter_v001.py toss_live_readonly_smoke.py
+      - name: Live read-only staged smoke
+        id: live_smoke
+        continue-on-error: true
         shell: bash
         run: |
           if [[ -z "$TOSS_CLIENT_ID" || -z "$TOSS_CLIENT_SECRET" ]]; then
+            printf '{"pass":false,"failure":"SKIPPED_NO_SECRETS"}\n' > toss_live_smoke_result.json
             echo 'TOSS_LIVE_SMOKE=SKIPPED_NO_SECRETS'
-            exit 0
+            exit 1
           fi
-          python toss_market_data_adapter_v001.py --smoke-symbols 005930,AAPL,TQQQ,SOXL --bars 5
-          echo 'TOSS_LIVE_SMOKE=PASS'
-# live-smoke retrigger after repository secrets registration
+          python toss_live_readonly_smoke.py
+      - name: Upload live smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toss-live-readonly-smoke
+          path: toss_live_smoke_result.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Enforce live smoke result
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('toss_live_smoke_result.json')
+          if not p.exists():
+              raise SystemExit('missing live smoke result')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          if not d.get('pass'):
+              raise SystemExit('Toss live read-only smoke did not pass')
+          print('TOSS_LIVE_SMOKE=PASS')
+          PY
