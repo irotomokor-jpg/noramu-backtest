@@ -1,0 +1,47 @@
+name: Dororong US v0.21 Jan-Jun Replay Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/dororong-us-v021-jan01-jun30-replay-audit]
+    paths:
+      - 'dororong_us_v021_jan01_jun30_replay_audit.py'
+      - '.github/workflows/dororong-us-v021-jan01-jun30-replay.yml'
+permissions:
+  contents: write
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/dororong-us-v021-jan01-jun30-replay-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -U pandas numpy yfinance pyarrow requests lxml html5lib beautifulsoup4
+      - name: Compile
+        run: python -m py_compile dororong_us_v021_jan01_jun30_replay_audit.py
+      - name: Run Jan-Jun causal replay
+        run: python dororong_us_v021_jan01_jun30_replay_audit.py --outdir dororong_us_v021_replay_output
+      - name: Verify outputs
+        run: |
+          test -s dororong_us_v021_replay_output/scorecard.json
+          test -f dororong_us_v021_replay_output/replay_monthly_summary.csv
+          test -f dororong_us_v021_replay_output/monthly_reject_summary.csv
+          test -f dororong_us_v021_replay_output/intraday_fidelity_by_month.csv
+          cat dororong_us_v021_replay_output/scorecard.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dororong-v021-jan-jun-replay
+          path: dororong_us_v021_replay_output/
+      - name: Persist result to branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f dororong_us_v021_replay_output
+          git diff --cached --quiet || git commit -m 'dororong: persist v0.21 Jan-Jun replay result [skip ci]'
+          git pull --rebase origin agent/dororong-us-v021-jan01-jun30-replay-audit
+          git push origin HEAD:agent/dororong-us-v021-jan01-jun30-replay-audit

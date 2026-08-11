@@ -1,0 +1,77 @@
+{
+  "version": "v0.21-DORORONG-US-JAN01-JUN30-CAUSAL-REPLAY-AUDIT",
+  "purpose": "EXECUTION_AUDIT_NOT_OOS",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "frozen_strategy": "DORO_D1_AGG+BULL",
+  "replay_start": "2026-01-01 00:00:00-05:00",
+  "replay_end_exclusive": "2026-07-01 00:00:00-04:00",
+  "universe_count": 27,
+  "coverage": 1.0,
+  "setup_count": 38,
+  "results": [
+    {
+      "cost_bps_side": 5.0,
+      "closed_trades": 34,
+      "wins": 17,
+      "losses": 17,
+      "pnl": 76.19657331192383,
+      "ending_equity": 5076.196573311923,
+      "return_pct": 0.015239314662384595,
+      "pf": 1.4776940245585417,
+      "max_dd": 0.01997227425428838,
+      "fees": 17.714691638621176
+    },
+    {
+      "cost_bps_side": 10.0,
+      "closed_trades": 34,
+      "wins": 17,
+      "losses": 17,
+      "pnl": 58.248961681755404,
+      "ending_equity": 5058.248961681759,
+      "return_pct": 0.011649792336351883,
+      "pf": 1.3446102174178525,
+      "max_dd": 0.021015054022117452,
+      "fees": 35.370648737365116
+    },
+    {
+      "cost_bps_side": 20.0,
+      "closed_trades": 34,
+      "wins": 17,
+      "losses": 17,
+      "pnl": 22.53110361266448,
+      "ending_equity": 5022.53110361267,
+      "return_pct": 0.004506220722534149,
+      "pf": 1.119854252603394,
+      "max_dd": 0.02406601959586574,
+      "fees": 70.50708288986081
+    },
+    {
+      "cost_bps_side": 30.0,
+      "closed_trades": 34,
+      "wins": 17,
+      "losses": 17,
+      "pnl": -12.951476431152699,
+      "ending_equity": 4987.048523568846,
+      "return_pct": -0.0025902952862308926,
+      "pf": 0.937384285708462,
+      "max_dd": 0.02710897461004269,
+      "fees": 105.41074443557183
+    }
+  ],
+  "minute_coverage": {
+    "traded_tickers": 19,
+    "one_minute_tickers": 0,
+    "fallback_tickers": 0,
+    "missing_tickers": 19
+  },
+  "program_contract_outputs": [
+    "replay_event_log.csv",
+    "minute_execution_audit.csv",
+    "setup_replay_audit.csv"
+  ],
+  "note": "Seen-history replay: use for execution/state-machine design, never for parameter retuning.",
+  "expanded_window": "2026-01-01 through 2026-06-30 America/New_York",
+  "lower_tf_policy": "REPORT_AVAILABLE_INTERVAL_OR_NONE_NEVER_FAKE",
+  "interpretation": "SEEN_HISTORY_60M_CAUSAL_REPLAY_NOT_FORWARD_NOT_TUNING"
+}
