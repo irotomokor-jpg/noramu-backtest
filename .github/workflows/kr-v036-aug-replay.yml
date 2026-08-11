@@ -5,6 +5,7 @@ on:
     branches: [agent/kr-v036-aug-replay-audit]
     paths:
       - 'kr_v036_aug03_10_replay_audit.py'
+      - 'kr_v036_replay_hotfix.py'
       - '.github/workflows/kr-v036-aug-replay.yml'
 permissions:
   contents: write
@@ -23,9 +24,9 @@ jobs:
       - name: Install dependencies
         run: pip install -U pandas numpy yfinance pyarrow requests lxml html5lib beautifulsoup4
       - name: Compile
-        run: python -m py_compile kr_v036_aug03_10_replay_audit.py
+        run: python -m py_compile kr_v036_aug03_10_replay_audit.py kr_v036_replay_hotfix.py
       - name: Run replay audit
-        run: python kr_v036_aug03_10_replay_audit.py --outdir kr_v036_replay_output
+        run: python kr_v036_replay_hotfix.py --outdir kr_v036_replay_output
       - name: Verify outputs
         run: |
           test -s kr_v036_replay_output/scorecard.json
