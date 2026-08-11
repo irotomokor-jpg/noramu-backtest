@@ -1,0 +1,2 @@
+﻿yf_ticker,symbol,name,error
+450080.KS,450080,에코프로머티,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
