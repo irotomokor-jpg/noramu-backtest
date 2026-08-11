@@ -1,0 +1,12 @@
+{
+  "version": "KR_V038_JULY_SIGNAL_FUNNEL_AUDIT",
+  "purpose": "SIGNAL_SCARCITY_DIAGNOSTIC_NOT_TUNING",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "july_final_candidates": 3,
+  "july_market_regime_rejects": 3,
+  "july_trades": 0,
+  "prior_2026_month_median_final_candidates": 2.0,
+  "prior_2026_month_mean_final_candidates": 2.8,
+  "interpretation": "Do not loosen thresholds from this seen-history diagnostic. Use counts to decide whether a separate higher-frequency sleeve is needed."
+}
