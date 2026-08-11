@@ -1,0 +1,58 @@
+{
+  "version": "DORORONG_V023_CONDITIONED_RUNNER_AUDIT",
+  "purpose": "EXIT_ONLY_REGIME_CONDITIONED_COUNTERFACTUAL_NOT_ENTRY_TUNING",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "baseline": "50pct_original_at_1R_then_all_remainder_at_2R",
+  "counterfactual": "if prior-bar strong condition: half remainder at_2R + final_quarter runner; +1R floor + 2ATR peak trail; max26",
+  "activation_rules": [
+    "MARKET_STRONG",
+    "STOCK_STRONG",
+    "BOTH_STRONG"
+  ],
+  "target2_cases": 8,
+  "audited_cases": 8,
+  "rules": [
+    {
+      "rule": "MARKET_STRONG",
+      "activated": 8,
+      "better": 2,
+      "worse": 6,
+      "better_fraction": 0.25,
+      "aggregate_delta_net_pnl_5bps": -2.639422890375805,
+      "median_delta_runner_R": -0.5357629588998035,
+      "worst_delta_net_pnl_5bps": -1.741536950374396,
+      "max_peak_R_after_target2": 4.453436718707741,
+      "reached_3R_peak_fraction": 0.125,
+      "classification": "NOT_SUPPORTED_ON_H1"
+    },
+    {
+      "rule": "STOCK_STRONG",
+      "activated": 5,
+      "better": 1,
+      "worse": 4,
+      "better_fraction": 0.2,
+      "aggregate_delta_net_pnl_5bps": -3.9627628794417333,
+      "median_delta_runner_R": -0.5917759302744008,
+      "worst_delta_net_pnl_5bps": -1.741536950374396,
+      "max_peak_R_after_target2": 2.432829087411915,
+      "reached_3R_peak_fraction": 0.0,
+      "classification": "NOT_SUPPORTED_ON_H1"
+    },
+    {
+      "rule": "BOTH_STRONG",
+      "activated": 5,
+      "better": 1,
+      "worse": 4,
+      "better_fraction": 0.2,
+      "aggregate_delta_net_pnl_5bps": -3.9627628794417333,
+      "median_delta_runner_R": -0.5917759302744008,
+      "worst_delta_net_pnl_5bps": -1.741536950374396,
+      "max_peak_R_after_target2": 2.432829087411915,
+      "reached_3R_peak_fraction": 0.0,
+      "classification": "NOT_SUPPORTED_ON_H1"
+    }
+  ],
+  "selection_policy": "NO_RULE_SELECTED_FROM_SEEN_H1_RESULTS",
+  "note": "Seen-history H1 diagnostic only. Frozen v0.16 remains unchanged."
+}
