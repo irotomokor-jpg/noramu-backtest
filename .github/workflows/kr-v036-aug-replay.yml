@@ -1,0 +1,46 @@
+name: KR v0.36 Aug 03-10 Replay Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/kr-v036-aug-replay-audit]
+    paths:
+      - 'kr_v036_aug03_10_replay_audit.py'
+      - '.github/workflows/kr-v036-aug-replay.yml'
+permissions:
+  contents: write
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/kr-v036-aug-replay-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -U pandas numpy yfinance pyarrow requests lxml html5lib beautifulsoup4
+      - name: Compile
+        run: python -m py_compile kr_v036_aug03_10_replay_audit.py
+      - name: Run replay audit
+        run: python kr_v036_aug03_10_replay_audit.py --outdir kr_v036_replay_output
+      - name: Verify outputs
+        run: |
+          test -s kr_v036_replay_output/scorecard.json
+          test -f kr_v036_replay_output/replay_event_log.csv
+          test -f kr_v036_replay_output/minute_execution_audit.csv
+          cat kr_v036_replay_output/scorecard.json
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kr-v036-aug-replay
+          path: kr_v036_replay_output/
+      - name: Persist result to branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f kr_v036_replay_output
+          git diff --cached --quiet || git commit -m 'kr: persist v0.36 replay audit result [skip ci]'
+          git push origin HEAD:agent/kr-v036-aug-replay-audit
