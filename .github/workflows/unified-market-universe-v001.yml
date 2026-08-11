@@ -1,0 +1,39 @@
+name: Unified Market Universe v0.01
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - 'UNIFIED_MARKET_UNIVERSE_PLAN_v001.md'
+      - 'unified_market_universe_plan_v001.py'
+      - '.github/workflows/unified-market-universe-v001.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas
+      - name: Compile
+        run: python -m py_compile unified_market_universe_plan_v001.py
+      - name: Self-test
+        run: python unified_market_universe_plan_v001.py --self-test
+      - name: Build plan
+        run: python unified_market_universe_plan_v001.py --out /tmp/unified_plan.json
+      - name: Safety assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'NO_ORDERS' unified_market_universe_plan_v001.py
+          grep -q 'LIVE_APPROVAL = False' unified_market_universe_plan_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' unified_market_universe_plan_v001.py
+          ! grep -q 'X-Tossinvest-Account' unified_market_universe_plan_v001.py
+          echo 'SAFETY=PASS'
