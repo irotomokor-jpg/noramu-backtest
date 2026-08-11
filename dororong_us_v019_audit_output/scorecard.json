@@ -1,0 +1,22 @@
+{
+  "version": "DORORONG_V019_TIMED_EXIT_AND_JULY_SCARCITY_AUDIT",
+  "purpose": "EXECUTION_POLICY_AND_SIGNAL_FUNNEL_DIAGNOSTIC_NOT_TUNING",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "timed_exit": {
+    "timed_or_boundary_rows": 4,
+    "true_time_exits": 3,
+    "replay_boundary_eod_final": 1,
+    "time_rows_with_intraday": 3,
+    "max_abs_next_open_vs_model_bps": 19.34586865472765,
+    "recommended_time_exit": "NEXT_LOWER_TF_OPEN_AFTER_COMPLETED_60M_BAR",
+    "recommended_eod_final": "CARRY_POSITION_REPLAY_BOUNDARY_NOT_LIVE_EXIT"
+  },
+  "july_funnel": {
+    "raw_july_setups": 23,
+    "bull_pass": 3,
+    "replay_entry_candidates": 3,
+    "trades": 3,
+    "risk_rejects": 0
+  }
+}
