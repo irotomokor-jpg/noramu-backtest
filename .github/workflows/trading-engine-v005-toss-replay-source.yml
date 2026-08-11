@@ -1,0 +1,48 @@
+name: Trading Engine v0.05 Toss Replay Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/trading-engine-v005-toss-replay-source
+    paths:
+      - 'toss_replay_source_v001.py'
+      - 'toss_replay_source_validation.py'
+      - 'toss_replay_bars_v001.py'
+      - 'TOSS_REPLAY_REVALIDATION_PLAN_v001.md'
+      - '.github/workflows/trading-engine-v005-toss-replay-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas requests
+      - name: Compile
+        run: python -m py_compile toss_replay_source_v001.py toss_replay_source_validation.py toss_replay_bars_v001.py
+      - name: Source self-test
+        run: python toss_replay_source_v001.py --self-test
+      - name: Pagination validation
+        run: python toss_replay_source_validation.py
+      - name: Session anchored bars self-test
+        run: python toss_replay_bars_v001.py --self-test
+      - name: Safety assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'TOSS_REPLAY_READ_ONLY_NO_ORDERS' toss_replay_source_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_replay_source_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_replay_source_v001.py
+          ! grep -q 'X-Tossinvest-Account' toss_replay_source_v001.py
+          ! grep -Eq 'TOSS_CLIENT_(ID|SECRET)[[:space:]]*=[[:space:]]*["'"'][^"'"']+["'"']' toss_replay_source_v001.py
+          echo 'SAFETY=PASS'
+      - name: Live probe intentionally disabled on GitHub-hosted runner
+        run: |
+          echo 'TOSS_LIVE_DEPTH_PROBE=SKIPPED_GITHUB_HOSTED_IP_NOT_ALLOWLISTED'
+          echo 'Run --probe-default only from a Toss IP-authorized host.'
