@@ -1,2 +1,2 @@
-﻿trades,with_intraday_data,same_exit_reason,earlier_than_model_exit,ambiguous_bars,max_abs_exit_price_diff_bps
-7,7,0,0,0,90.3306465275655
+﻿trades,with_intraday_data,condition_exit_trades,condition_exits_resolved,timed_exit_policy_required,ambiguous_bars,max_abs_resolved_exit_price_diff_bps
+7,7,3,3,4,0,0.0
