@@ -1,0 +1,74 @@
+{
+  "version": "v0.17-DORORONG-US-AUG03-10-CAUSAL-REPLAY-AUDIT",
+  "purpose": "EXECUTION_AUDIT_NOT_OOS",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "frozen_strategy": "DORO_D1_AGG+BULL",
+  "replay_start": "2026-08-03 00:00:00-04:00",
+  "replay_end_exclusive": "2026-08-11 00:00:00-04:00",
+  "universe_count": 27,
+  "coverage": 1.0,
+  "setup_count": 5,
+  "results": [
+    {
+      "cost_bps_side": 5.0,
+      "closed_trades": 4,
+      "wins": 4,
+      "losses": 0,
+      "pnl": 18.703366396337913,
+      "ending_equity": 5018.703366396337,
+      "return_pct": 0.0037406732792673036,
+      "pf": Infinity,
+      "max_dd": 0.004975126703126387,
+      "fees": 2.0132242803334153
+    },
+    {
+      "cost_bps_side": 10.0,
+      "closed_trades": 4,
+      "wins": 3,
+      "losses": 1,
+      "pnl": 16.68668120275288,
+      "ending_equity": 5016.686681202755,
+      "return_pct": 0.003337336240550881,
+      "pf": 64.0615752575582,
+      "max_dd": 0.005155315764655111,
+      "fees": 4.026051498993867
+    },
+    {
+      "cost_bps_side": 20.0,
+      "closed_trades": 4,
+      "wins": 3,
+      "losses": 1,
+      "pnl": 12.654502521351105,
+      "ending_equity": 5012.654502521353,
+      "return_pct": 0.002530900504270628,
+      "pf": 12.835897473626463,
+      "max_dd": 0.005515720110379707,
+      "fees": 8.050514880027896
+    },
+    {
+      "cost_bps_side": 30.0,
+      "closed_trades": 4,
+      "wins": 2,
+      "losses": 2,
+      "pnl": 8.623912566399468,
+      "ending_equity": 5008.6239125664,
+      "return_pct": 0.0017247825132800099,
+      "pf": 4.205320799212122,
+      "max_dd": 0.00587615944342601,
+      "fees": 12.073390400554425
+    }
+  ],
+  "minute_coverage": {
+    "traded_tickers": 4,
+    "one_minute_tickers": 0,
+    "fallback_tickers": 4,
+    "missing_tickers": 0
+  },
+  "program_contract_outputs": [
+    "replay_event_log.csv",
+    "minute_execution_audit.csv",
+    "setup_replay_audit.csv"
+  ],
+  "note": "Seen-history replay: use for execution/state-machine design, never for parameter retuning."
+}
