@@ -10,6 +10,7 @@ on:
       - 'unified_market_universe_plan_v001.py'
       - 'unified_pit_membership_v001.py'
       - 'toss_unified_adjusted_cache_v001.py'
+      - 'toss_unified_kr_candidate_compile_v001.py'
       - 'LEVERAGED_ETF_SLEEVE_PLAN_v001.md'
       - 'leveraged_etf_sleeve_plan_v001.py'
       - 'toss_leveraged_etf_causal_replay_v001.py'
@@ -33,13 +34,15 @@ jobs:
           python-version: '3.12'
       - run: pip install -U pandas requests pyarrow
       - name: Compile
-        run: python -m py_compile unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py
+        run: python -m py_compile unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py toss_unified_kr_candidate_compile_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py
       - name: Universe self-test
         run: python unified_market_universe_plan_v001.py --self-test
       - name: PIT membership self-test
         run: python unified_pit_membership_v001.py --self-test
       - name: Unified Toss cache self-test
         run: python toss_unified_adjusted_cache_v001.py --self-test
+      - name: Unified KR candidate compiler self-test
+        run: python toss_unified_kr_candidate_compile_v001.py --self-test
       - name: Leveraged ETF plan self-test
         run: python leveraged_etf_sleeve_plan_v001.py --self-test
       - name: Leveraged ETF causal replay self-test
@@ -66,11 +69,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          files='unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py'
+          files='unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py toss_unified_kr_candidate_compile_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py'
           for f in $files; do grep -q 'NO_ORDERS' "$f"; done
           grep -q 'LIVE_APPROVAL = False' unified_market_universe_plan_v001.py
           grep -q 'LIVE_APPROVAL = False' unified_pit_membership_v001.py
           grep -q 'LIVE_APPROVAL = False' toss_unified_adjusted_cache_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_kr_candidate_compile_v001.py
           ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' $files
           ! grep -q 'X-Tossinvest-Account' $files
           echo 'SAFETY=PASS'
