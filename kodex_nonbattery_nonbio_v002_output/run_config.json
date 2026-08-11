@@ -1,0 +1,44 @@
+{
+  "args": {
+    "markets": "KR",
+    "outdir": "kodex_nonbattery_nonbio_v002_output",
+    "cache_dir": "kodex_nonbattery_nonbio_v001_cache",
+    "period_daily": "5y",
+    "period_60m": "730d",
+    "min_us_coverage": 18,
+    "min_kr_coverage": 7,
+    "refresh": false,
+    "self_test": false
+  },
+  "universes": {
+    "KR": [
+      "069500.KS",
+      "091160.KS",
+      "091180.KS",
+      "091170.KS",
+      "102970.KS",
+      "140700.KS",
+      "117700.KS",
+      "117680.KS",
+      "140710.KS",
+      "471990.KS",
+      "487240.KS",
+      "445290.KS"
+    ]
+  },
+  "benchmarks": {
+    "KR": "069500.KS"
+  },
+  "entry_modes": [
+    "DAILY_5_20_CROSS",
+    "MA20_RECLAIM_60M"
+  ],
+  "base_cost": {
+    "label": "BASE_5BP_SIDE",
+    "bps_each_side": 5.0
+  },
+  "stress_cost": {
+    "label": "STRESS_10BP_SIDE",
+    "bps_each_side": 10.0
+  }
+}

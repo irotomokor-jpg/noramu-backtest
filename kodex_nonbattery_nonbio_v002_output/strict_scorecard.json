@@ -1,0 +1,68 @@
+{
+  "version": "KODEX_NONBATTERY_NONBIO_V002_EXPANDED",
+  "purpose": "KODEX_STRICT_NONBATTERY_NONBIO_SECTOR_ETF_SCREEN",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "benchmark_context_only": "069500.KS",
+  "tradable_universe": [
+    "091160.KS",
+    "091180.KS",
+    "091170.KS",
+    "102970.KS",
+    "140700.KS",
+    "117700.KS",
+    "117680.KS",
+    "140710.KS",
+    "471990.KS",
+    "487240.KS",
+    "445290.KS"
+  ],
+  "excluded_policy": [
+    "battery/secondary-battery/EV-battery thematic ETFs",
+    "bio/healthcare/pharma thematic ETFs",
+    "leverage/inverse products",
+    "broad KODEX index products from tradable set (benchmark only) because they can contain excluded sectors",
+    "new short-history sector ETFs from this historical screen"
+  ],
+  "entry_modes": [
+    "DAILY_5_20_CROSS",
+    "MA20_RECLAIM_60M"
+  ],
+  "portfolio_dedup": "one_new_position_per_day_max_3_overlapping_positions_prior_month_momentum_priority",
+  "decisions": [
+    {
+      "entry_mode": "DAILY_5_20_CROSS",
+      "criteria": {
+        "development_sample_ge_10": true,
+        "development_positive_pf_ge_1p10": true,
+        "h1_positive": true,
+        "h1_pf_ge_1": true,
+        "july_plus_10bp_nonnegative": false,
+        "development_month_concentration_le_60pct": false
+      },
+      "criteria_pass_count": 4,
+      "screen_pass": false
+    },
+    {
+      "entry_mode": "MA20_RECLAIM_60M",
+      "criteria": {
+        "development_sample_ge_10": true,
+        "development_positive_pf_ge_1p10": false,
+        "h1_positive": true,
+        "h1_pf_ge_1": true,
+        "july_plus_10bp_nonnegative": true,
+        "development_month_concentration_le_60pct": false
+      },
+      "criteria_pass_count": 4,
+      "screen_pass": false
+    }
+  ],
+  "selection_policy": "NO_PARAMETER_TUNING_FROM_2026_LOCKED_WINDOWS",
+  "note": "Expanded-universe research screen only. No parameter changed from v0.01; 2026 remains locked diagnostic evidence.",
+  "expansion_from_v001": [
+    "471990.KS",
+    "487240.KS",
+    "445290.KS"
+  ],
+  "universe_policy": "same strict battery/bio and leverage/inverse exclusions; added three explicit non-battery/non-bio KODEX themes subject to data coverage"
+}
