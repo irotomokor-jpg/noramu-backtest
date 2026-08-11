@@ -47,10 +47,12 @@ def query_adjusted(con: sqlite3.Connection, symbol: str, start: pd.Timestamp, en
     s = pd.Timestamp(start); e = pd.Timestamp(end)
     s = s.tz_localize(TZ) if s.tzinfo is None else s.tz_convert(TZ)
     e = e.tz_localize(TZ) if e.tzinfo is None else e.tz_convert(TZ)
+    # Toss cache preserves the source ISO timestamp including +09:00 for KR.
+    # Keep the SQL bounds in that same timezone/lexical basis.
     q = pd.read_sql_query(
         "SELECT timestamp,open,high,low,close,volume FROM candles "
         "WHERE kind='stock' AND symbol=? AND adjusted=1 AND timestamp>=? AND timestamp<? ORDER BY timestamp",
-        con, params=(str(symbol).zfill(6), s.tz_convert("UTC").isoformat(), e.tz_convert("UTC").isoformat()))
+        con, params=(str(symbol).zfill(6), s.isoformat(), e.isoformat()))
     if q.empty:
         return pd.DataFrame(columns=["open","high","low","close","volume"])
     ts = pd.to_datetime(q.pop("timestamp"), utc=True, errors="coerce")
@@ -222,7 +224,7 @@ def self_test() -> None:
               ("2026-01-05 08:01",104,105,103,104.5,150),("2026-01-05 08:59",104.5,106,104,105,180),
               ("2026-01-05 09:00",106,107,105,106.5,900),("2026-01-05 10:00",999,999,999,999,999)]
         for t,op,hi,lo,cl,v in vals:
-            rows.append(("stock","005930",1,pd.Timestamp(t,tz=TZ).tz_convert("UTC").isoformat(),op,hi,lo,cl,v))
+            rows.append(("stock","005930",1,pd.Timestamp(t,tz=TZ).isoformat(),op,hi,lo,cl,v))
         con.executemany("INSERT INTO candles VALUES (?,?,?,?,?,?,?,?,?)",rows); con.commit()
         f=candidate_features(con,"005930","2026-01-05T10:00:00+09:00"); con.close()
         assert f["causal_strict_before_entry"] is True and f["max_source_timestamp"].startswith("2026-01-05 09:00")
