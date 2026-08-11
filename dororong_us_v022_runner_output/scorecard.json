@@ -1,0 +1,22 @@
+{
+  "version": "DORORONG_V022_RUNNER_OPPORTUNITY_AUDIT",
+  "purpose": "EXIT_ONLY_COUNTERFACTUAL_NOT_ENTRY_TUNING",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "current_exit": "50pct_target1_then_remaining_target2_or_stop_time",
+  "counterfactual": "after_target1_remaining_half_BE_plus_2ATR_peak_trail_max26",
+  "summary": {
+    "target2_trades": 8,
+    "audited": 8,
+    "runner_better_count": 2,
+    "runner_worse_count": 6,
+    "runner_better_fraction": 0.25,
+    "aggregate_delta_net_pnl_5bps": -1.658914906786197,
+    "median_delta_remainder_R": -0.35851100611010767,
+    "max_peak_R_during_runner": 4.453436718707741,
+    "reached_3R_or_more_fraction": 0.25,
+    "reached_4R_or_more_fraction": 0.125,
+    "classification": "FIXED_2R_NOT_DISPROVEN"
+  },
+  "note": "Seen-history H1 diagnostic. Frozen v0.16 remains unchanged."
+}
