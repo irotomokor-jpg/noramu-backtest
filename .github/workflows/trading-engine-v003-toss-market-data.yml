@@ -1,0 +1,48 @@
+name: Trading Engine v0.03 Toss Market Data
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/trading-engine-v003-toss-market-data]
+    paths:
+      - 'toss_market_data_adapter_v001.py'
+      - 'toss_market_data_adapter_validation.py'
+      - '.github/workflows/trading-engine-v003-toss-market-data.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TOSS_CLIENT_ID: ${{ secrets.TOSS_CLIENT_ID }}
+      TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/trading-engine-v003-toss-market-data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -U pandas requests
+      - name: Compile
+        run: python -m py_compile toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py
+      - name: Offline adapter self-test
+        run: python toss_market_data_adapter_v001.py --self-test
+      - name: Mock API validation
+        run: python toss_market_data_adapter_validation.py
+      - name: Safety assertions
+        run: |
+          grep -q 'MARKET_DATA_ONLY_NO_ORDERS' toss_market_data_adapter_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_market_data_adapter_v001.py
+          ! grep -RniE '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_market_data_adapter_v001.py toss_market_data_adapter_validation.py
+          ! grep -Rni 'X-Tossinvest-Account' toss_market_data_adapter_v001.py
+      - name: Optional live read-only smoke
+        shell: bash
+        run: |
+          if [[ -z "$TOSS_CLIENT_ID" || -z "$TOSS_CLIENT_SECRET" ]]; then
+            echo 'TOSS_LIVE_SMOKE=SKIPPED_NO_SECRETS'
+            exit 0
+          fi
+          python toss_market_data_adapter_v001.py --smoke-symbols 005930,AAPL,TQQQ,SOXL --bars 5
+          echo 'TOSS_LIVE_SMOKE=PASS'
