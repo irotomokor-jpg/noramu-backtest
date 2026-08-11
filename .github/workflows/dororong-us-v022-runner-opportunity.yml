@@ -1,0 +1,38 @@
+name: Dororong US v0.22 Runner Opportunity Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/dororong-us-v022-runner-opportunity-audit]
+    paths:
+      - 'dororong_us_v022_runner_opportunity_audit.py'
+      - '.github/workflows/dororong-us-v022-runner-opportunity.yml'
+permissions:
+  contents: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/dororong-us-v022-runner-opportunity-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy yfinance requests
+      - run: python -m py_compile dororong_us_v022_runner_opportunity_audit.py
+      - run: python dororong_us_v022_runner_opportunity_audit.py
+      - run: cat dororong_us_v022_runner_output/scorecard.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dororong-v022-runner
+          path: dororong_us_v022_runner_output/
+      - name: Persist
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f dororong_us_v022_runner_output
+          git diff --cached --quiet || git commit -m 'dororong: persist v0.22 runner audit [skip ci]'
+          git pull --rebase origin agent/dororong-us-v022-runner-opportunity-audit
+          git push origin HEAD:agent/dororong-us-v022-runner-opportunity-audit
