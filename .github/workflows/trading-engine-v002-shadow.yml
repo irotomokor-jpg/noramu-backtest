@@ -1,0 +1,34 @@
+name: Trading Engine v0.02 Shadow Runtime
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/trading-engine-v002-shadow-runtime]
+    paths:
+      - 'trading_engine_v001_contract.py'
+      - 'trading_engine_v002_shadow.py'
+      - 'trading_engine_v002_validation.py'
+      - '.github/workflows/trading-engine-v002-shadow.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/trading-engine-v002-shadow-runtime
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile
+        run: python -m py_compile trading_engine_v001_contract.py trading_engine_v002_shadow.py trading_engine_v002_validation.py
+      - name: Runtime self-test
+        run: python trading_engine_v002_shadow.py --self-test
+      - name: Golden causal replay validation
+        run: python trading_engine_v002_validation.py
+      - name: Safety assertions
+        run: |
+          grep -q 'SHADOW_ONLY_NO_ORDERS' trading_engine_v002_shadow.py
+          grep -q 'LIVE_APPROVAL = False' trading_engine_v002_shadow.py
+          ! grep -RniE 'place_order|send_order|broker.*(buy|sell)|live_order' trading_engine_v002_shadow.py trading_engine_v002_validation.py
