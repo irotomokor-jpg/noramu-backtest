@@ -1,0 +1,56 @@
+name: Dororong US v0.18 Jul 01-Aug 10 Replay Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/dororong-us-v018-jul01-aug10-replay-audit]
+    paths:
+      - 'dororong_us_v018_jul01_aug10_replay_audit.py'
+      - 'dororong_us_v018_lower_tf_first_touch_audit.py'
+      - '.github/workflows/dororong-us-v018-jul01-aug10-replay.yml'
+permissions:
+  contents: write
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/dororong-us-v018-jul01-aug10-replay-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -U pandas numpy yfinance pyarrow requests lxml html5lib beautifulsoup4
+      - name: Compile
+        run: python -m py_compile dororong_us_v018_jul01_aug10_replay_audit.py dororong_us_v018_lower_tf_first_touch_audit.py dororong_us_v017_aug03_10_replay_audit.py
+      - name: Run expanded replay audit
+        run: python dororong_us_v018_jul01_aug10_replay_audit.py --outdir dororong_us_v018_replay_output
+      - name: Run lower-TF first-touch audit
+        run: python dororong_us_v018_lower_tf_first_touch_audit.py --outdir dororong_us_v018_replay_output
+      - name: Verify outputs
+        run: |
+          test -s dororong_us_v018_replay_output/scorecard.json
+          test -f dororong_us_v018_replay_output/replay_event_log.csv
+          test -f dororong_us_v018_replay_output/minute_execution_audit.csv
+          test -f dororong_us_v018_replay_output/replay_daily_summary.csv
+          test -f dororong_us_v018_replay_output/replay_monthly_summary.csv
+          test -f dororong_us_v018_replay_output/intraday_fidelity_by_day.csv
+          test -f dororong_us_v018_replay_output/lower_tf_first_touch_audit.csv
+          test -f dororong_us_v018_replay_output/lower_tf_first_touch_summary.csv
+          cat dororong_us_v018_replay_output/scorecard.json
+          cat dororong_us_v018_replay_output/lower_tf_first_touch_summary.csv
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dororong-v018-jul01-aug10-replay
+          path: dororong_us_v018_replay_output/
+      - name: Persist result to branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f dororong_us_v018_replay_output
+          git diff --cached --quiet || git commit -m 'dororong: persist v0.18 Jul01-Aug10 replay result [skip ci]'
+          git pull --rebase origin agent/dororong-us-v018-jul01-aug10-replay-audit
+          git push origin HEAD:agent/dororong-us-v018-jul01-aug10-replay-audit
