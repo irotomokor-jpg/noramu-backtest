@@ -1,0 +1,2 @@
+﻿timed_or_boundary_rows,true_time_exits,replay_boundary_eod_final,time_rows_with_intraday,max_abs_next_open_vs_model_bps,recommended_time_exit,recommended_eod_final
+4,3,1,3,19.34586865472765,NEXT_LOWER_TF_OPEN_AFTER_COMPLETED_60M_BAR,CARRY_POSITION_REPLAY_BOUNDARY_NOT_LIVE_EXIT
