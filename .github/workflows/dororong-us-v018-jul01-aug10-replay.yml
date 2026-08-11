@@ -5,6 +5,7 @@ on:
     branches: [agent/dororong-us-v018-jul01-aug10-replay-audit]
     paths:
       - 'dororong_us_v018_jul01_aug10_replay_audit.py'
+      - 'dororong_us_v018_lower_tf_first_touch_audit.py'
       - '.github/workflows/dororong-us-v018-jul01-aug10-replay.yml'
 permissions:
   contents: write
@@ -23,9 +24,11 @@ jobs:
       - name: Install dependencies
         run: pip install -U pandas numpy yfinance pyarrow requests lxml html5lib beautifulsoup4
       - name: Compile
-        run: python -m py_compile dororong_us_v018_jul01_aug10_replay_audit.py dororong_us_v017_aug03_10_replay_audit.py
+        run: python -m py_compile dororong_us_v018_jul01_aug10_replay_audit.py dororong_us_v018_lower_tf_first_touch_audit.py dororong_us_v017_aug03_10_replay_audit.py
       - name: Run expanded replay audit
         run: python dororong_us_v018_jul01_aug10_replay_audit.py --outdir dororong_us_v018_replay_output
+      - name: Run lower-TF first-touch audit
+        run: python dororong_us_v018_lower_tf_first_touch_audit.py --outdir dororong_us_v018_replay_output
       - name: Verify outputs
         run: |
           test -s dororong_us_v018_replay_output/scorecard.json
@@ -34,7 +37,10 @@ jobs:
           test -f dororong_us_v018_replay_output/replay_daily_summary.csv
           test -f dororong_us_v018_replay_output/replay_monthly_summary.csv
           test -f dororong_us_v018_replay_output/intraday_fidelity_by_day.csv
+          test -f dororong_us_v018_replay_output/lower_tf_first_touch_audit.csv
+          test -f dororong_us_v018_replay_output/lower_tf_first_touch_summary.csv
           cat dororong_us_v018_replay_output/scorecard.json
+          cat dororong_us_v018_replay_output/lower_tf_first_touch_summary.csv
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
