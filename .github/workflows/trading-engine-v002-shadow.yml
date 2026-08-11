@@ -7,6 +7,8 @@ on:
       - 'trading_engine_v001_contract.py'
       - 'trading_engine_v002_shadow.py'
       - 'trading_engine_v002_validation.py'
+      - 'shadow_runtime_driver_v001.py'
+      - 'shadow_runtime_driver_validation.py'
       - '.github/workflows/trading-engine-v002-shadow.yml'
 permissions:
   contents: read
@@ -22,13 +24,16 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile
-        run: python -m py_compile trading_engine_v001_contract.py trading_engine_v002_shadow.py trading_engine_v002_validation.py
+        run: python -m py_compile trading_engine_v001_contract.py trading_engine_v002_shadow.py trading_engine_v002_validation.py shadow_runtime_driver_v001.py shadow_runtime_driver_validation.py
       - name: Runtime self-test
         run: python trading_engine_v002_shadow.py --self-test
       - name: Golden causal replay validation
         run: python trading_engine_v002_validation.py
+      - name: Provider-neutral driver validation
+        run: python shadow_runtime_driver_validation.py
       - name: Safety assertions
         run: |
           grep -q 'SHADOW_ONLY_NO_ORDERS' trading_engine_v002_shadow.py
           grep -q 'LIVE_APPROVAL = False' trading_engine_v002_shadow.py
-          ! grep -RniE 'place_order|send_order|broker.*(buy|sell)|live_order' trading_engine_v002_shadow.py trading_engine_v002_validation.py
+          grep -q 'NO LIVE ORDERS' shadow_runtime_driver_v001.py
+          ! grep -RniE 'place_order|send_order|broker.*(buy|sell)|live_order' trading_engine_v002_shadow.py trading_engine_v002_validation.py shadow_runtime_driver_v001.py shadow_runtime_driver_validation.py
