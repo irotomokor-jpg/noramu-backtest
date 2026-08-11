@@ -46,3 +46,4 @@ jobs:
           fi
           python toss_market_data_adapter_v001.py --smoke-symbols 005930,AAPL,TQQQ,SOXL --bars 5
           echo 'TOSS_LIVE_SMOKE=PASS'
+# live-smoke retrigger after repository secrets registration
