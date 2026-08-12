@@ -10236,10 +10236,10 @@
     "NLEVEL_RR|ZTS|6T|269|270|271",
     "NLEVEL_RR|ZTS|6T|280|281|282"
   ],
-  "runs": 8,
-  "last_run_utc": "2026-08-11 21:28:18.886882+00:00",
+  "runs": 9,
+  "last_run_utc": "2026-08-12 05:16:01.192395+00:00",
   "last_resolved_tickers": 145,
-  "last_new_signal_count": 35,
+  "last_new_signal_count": 0,
   "recovered_from_workflow_run": 31354489202,
   "recovery_note": "Original baseline artifact recorded 2074 seen setup_ids. The list is intentionally rebuilt on the next scan; only setups confirmed after initialized_at_utc can be logged as prospective."
 }
