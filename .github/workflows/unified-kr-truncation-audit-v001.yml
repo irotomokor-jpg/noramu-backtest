@@ -1,0 +1,36 @@
+name: Unified KR Truncation Audit v0.01
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - 'toss_unified_kr_truncation_audit_v001.py'
+      - '.github/workflows/unified-kr-truncation-audit-v001.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy requests
+      - name: Compile
+        run: python -m py_compile toss_unified_kr_truncation_audit_v001.py
+      - name: Self-test
+        run: python toss_unified_kr_truncation_audit_v001.py --self-test
+      - name: Safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'NO_ORDERS' toss_unified_kr_truncation_audit_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_kr_truncation_audit_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_unified_kr_truncation_audit_v001.py
+          ! grep -q 'X-Tossinvest-Account' toss_unified_kr_truncation_audit_v001.py
+          echo 'SAFETY=PASS'
