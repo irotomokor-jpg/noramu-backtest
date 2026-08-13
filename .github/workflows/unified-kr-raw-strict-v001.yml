@@ -1,0 +1,41 @@
+name: Unified KR Raw + Strict v0.01
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - 'toss_unified_kr_raw_windows_v001.py'
+      - 'toss_unified_kr_strict_execution_v001.py'
+      - '.github/workflows/unified-kr-raw-strict-v001.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy requests
+      - name: Compile
+        run: python -m py_compile toss_unified_kr_raw_windows_v001.py toss_unified_kr_strict_execution_v001.py
+      - name: Raw-window self-test
+        run: python toss_unified_kr_raw_windows_v001.py --self-test
+      - name: Strict-execution self-test
+        run: python toss_unified_kr_strict_execution_v001.py --self-test
+      - name: Safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          files='toss_unified_kr_raw_windows_v001.py toss_unified_kr_strict_execution_v001.py'
+          for f in $files; do grep -q 'NO_ORDERS' "$f"; grep -q 'LIVE_APPROVAL = False' "$f"; done
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' $files
+          ! grep -q 'X-Tossinvest-Account' $files
+          grep -q 'tax_components(market' toss_unified_kr_strict_execution_v001.py
+          grep -q '"market":market' toss_unified_kr_strict_execution_v001.py
+          echo 'SAFETY=PASS'
