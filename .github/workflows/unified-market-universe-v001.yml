@@ -1,0 +1,121 @@
+name: Unified Market Universe v0.01
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - 'UNIFIED_MARKET_UNIVERSE_PLAN_v001.md'
+      - 'unified_market_universe_plan_v001.py'
+      - 'unified_pit_membership_v001.py'
+      - 'toss_unified_adjusted_cache_v001.py'
+      - 'toss_unified_adjusted_cache_v002.py'
+      - 'toss_unified_cache_batch_v001.py'
+      - 'toss_unified_cache_batch_v002.py'
+      - 'toss_unified_parallel_cache_v003.py'
+      - 'toss_unified_parallel_cache_v004.py'
+      - 'toss_unified_symbol_preflight_v001.py'
+      - 'toss_unified_coverage_audit_v001.py'
+      - 'toss_unified_kr_candidate_compile_v001.py'
+      - 'LEVERAGED_ETF_SLEEVE_PLAN_v001.md'
+      - 'leveraged_etf_sleeve_plan_v001.py'
+      - 'toss_leveraged_etf_causal_replay_v001.py'
+      - 'toss_extended_session_probe_v001.py'
+      - 'extended_session_feature_policy_v001.py'
+      - 'toss_noramu_extended_feature_audit_v001.py'
+      - 'toss_noramu_extended_feature_walkforward_v001.py'
+      - 'toss_noramu_extended_priority_replay_v001.py'
+      - '.github/workflows/unified-market-universe-v001.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas requests pyarrow
+      - name: Compile
+        run: python -m py_compile unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py toss_unified_adjusted_cache_v002.py toss_unified_cache_batch_v001.py toss_unified_cache_batch_v002.py toss_unified_parallel_cache_v003.py toss_unified_parallel_cache_v004.py toss_unified_symbol_preflight_v001.py toss_unified_coverage_audit_v001.py toss_unified_kr_candidate_compile_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py
+      - name: Universe self-test
+        run: python unified_market_universe_plan_v001.py --self-test
+      - name: PIT membership self-test
+        run: python unified_pit_membership_v001.py --self-test
+      - name: Unified Toss cache v001 self-test
+        run: python toss_unified_adjusted_cache_v001.py --self-test
+      - name: Unified Toss cache v002 self-test
+        run: python toss_unified_adjusted_cache_v002.py --self-test
+      - name: Unified Toss cache batch v001 self-test
+        run: python toss_unified_cache_batch_v001.py --self-test
+      - name: Unified Toss cache batch v002 self-test
+        run: python toss_unified_cache_batch_v002.py --self-test
+      - name: Unified Toss parallel cache v003 self-test
+        run: python toss_unified_parallel_cache_v003.py --self-test
+      - name: Unified Toss parallel cache v004 self-test
+        run: python toss_unified_parallel_cache_v004.py --self-test
+      - name: Unified Toss symbol preflight self-test
+        run: python toss_unified_symbol_preflight_v001.py --self-test
+      - name: Unified Toss coverage audit self-test
+        run: python toss_unified_coverage_audit_v001.py --self-test
+      - name: Unified KR candidate compiler self-test
+        run: python toss_unified_kr_candidate_compile_v001.py --self-test
+      - name: Leveraged ETF plan self-test
+        run: python leveraged_etf_sleeve_plan_v001.py --self-test
+      - name: Leveraged ETF causal replay self-test
+        run: python toss_leveraged_etf_causal_replay_v001.py --self-test
+      - name: Extended-session probe self-test
+        run: python toss_extended_session_probe_v001.py --self-test
+      - name: Extended-session feature policy self-test
+        run: python extended_session_feature_policy_v001.py
+      - name: Noramu extended-session outcome audit self-test
+        run: python toss_noramu_extended_feature_audit_v001.py --self-test
+      - name: Noramu extended-session walk-forward self-test
+        run: python toss_noramu_extended_feature_walkforward_v001.py --self-test
+      - name: Noramu extended-session priority replay self-test
+        run: python toss_noramu_extended_priority_replay_v001.py --self-test
+      - name: Build plans
+        run: |
+          python unified_market_universe_plan_v001.py --out /tmp/unified_plan.json
+          python leveraged_etf_sleeve_plan_v001.py --out /tmp/leveraged_etf_plan.json
+      - name: Build actual KR monthly PIT top100 manifests
+        run: python unified_pit_membership_v001.py --start 2025-09-01 --end 2026-08-01 --top-n 100 --outdir unified_pit_membership_v001
+      - name: KR broad collection plan smoke
+        run: |
+          python toss_unified_adjusted_cache_v001.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSPI,KR_KOSDAQ --chunk-index 0 --chunk-size 20
+          python toss_unified_cache_batch_v001.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSPI --chunk-size 20
+          python toss_unified_adjusted_cache_v002.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSDAQ --chunk-index 0 --chunk-size 20
+          python toss_unified_cache_batch_v002.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSDAQ --chunk-size 20
+          python toss_unified_parallel_cache_v003.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSDAQ --chunk-size 20 --start-chunk 1 --workers 2
+          python toss_unified_parallel_cache_v004.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSDAQ --chunk-size 20 --start-chunk 1 --workers 2
+          python toss_unified_symbol_preflight_v001.py --manifest unified_pit_membership_v001/kr_union_manifest.csv --sleeves KR_KOSDAQ
+      - name: Safety assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          files='unified_market_universe_plan_v001.py unified_pit_membership_v001.py toss_unified_adjusted_cache_v001.py toss_unified_adjusted_cache_v002.py toss_unified_cache_batch_v001.py toss_unified_cache_batch_v002.py toss_unified_parallel_cache_v003.py toss_unified_parallel_cache_v004.py toss_unified_symbol_preflight_v001.py toss_unified_coverage_audit_v001.py toss_unified_kr_candidate_compile_v001.py leveraged_etf_sleeve_plan_v001.py toss_leveraged_etf_causal_replay_v001.py toss_extended_session_probe_v001.py extended_session_feature_policy_v001.py toss_noramu_extended_feature_audit_v001.py toss_noramu_extended_feature_walkforward_v001.py toss_noramu_extended_priority_replay_v001.py'
+          for f in $files; do grep -q 'NO_ORDERS' "$f"; done
+          grep -q 'LIVE_APPROVAL = False' unified_market_universe_plan_v001.py
+          grep -q 'LIVE_APPROVAL = False' unified_pit_membership_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_adjusted_cache_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_adjusted_cache_v002.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_cache_batch_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_cache_batch_v002.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_parallel_cache_v003.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_parallel_cache_v004.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_symbol_preflight_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_coverage_audit_v001.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_kr_candidate_compile_v001.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' $files
+          ! grep -q 'X-Tossinvest-Account' $files
+          echo 'SAFETY=PASS'
+      - name: Upload KR PIT manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-kr-pit-v001
+          path: unified_pit_membership_v001/
+          if-no-files-found: error

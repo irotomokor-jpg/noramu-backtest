@@ -1,0 +1,34 @@
+name: Unified KR Execution Tail + Strict v0.03
+on:
+  push:
+    branches: [agent/unified-market-universe-v001]
+    paths:
+      - 'toss_unified_kr_execution_tail_sync_v001.py'
+      - 'toss_unified_kr_strict_execution_v003.py'
+      - '.github/workflows/unified-kr-execution-tail-strict-v003.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy requests
+      - name: Compile
+        run: |
+          python -m py_compile toss_unified_kr_execution_tail_sync_v001.py
+          python -m py_compile toss_unified_kr_strict_execution_v003.py
+      - name: Tail-sync self-test
+        run: python toss_unified_kr_execution_tail_sync_v001.py --self-test
+      - name: Strict v003 self-test
+        run: python toss_unified_kr_strict_execution_v003.py --self-test
+      - name: Safety
+        run: |
+          grep -q 'NO_ORDERS' toss_unified_kr_execution_tail_sync_v001.py
+          grep -q 'LIVE_APPROVAL = False\|LIVE_APPROVAL=False' toss_unified_kr_execution_tail_sync_v001.py
+          grep -q 'NO_ORDERS' toss_unified_kr_strict_execution_v003.py
+          grep -q 'LIVE_APPROVAL=False\|LIVE_APPROVAL = False' toss_unified_kr_strict_execution_v003.py
+          ! grep -E 'X-Tossinvest-Account|/orders|/order' toss_unified_kr_execution_tail_sync_v001.py
+          ! grep -E 'X-Tossinvest-Account|/orders|/order' toss_unified_kr_strict_execution_v003.py

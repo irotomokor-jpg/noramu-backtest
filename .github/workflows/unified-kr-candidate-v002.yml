@@ -1,0 +1,36 @@
+name: Unified KR Candidate v0.02
+
+on:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - 'toss_unified_kr_candidate_compile_v002.py'
+      - '.github/workflows/unified-kr-candidate-v002.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy requests
+      - name: Compile
+        run: python -m py_compile toss_unified_kr_candidate_compile_v002.py
+      - name: Lifecycle audit self-test
+        run: python toss_unified_kr_candidate_compile_v002.py --self-test
+      - name: Safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'NO_ORDERS' toss_unified_kr_candidate_compile_v002.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_kr_candidate_compile_v002.py
+          ! grep -Eq '/api/v1/(orders|conditional-orders|holdings|accounts|buying-power|sellable-quantity|commissions)' toss_unified_kr_candidate_compile_v002.py
+          ! grep -q 'X-Tossinvest-Account' toss_unified_kr_candidate_compile_v002.py
+          echo SAFETY=PASS
