@@ -1,0 +1,32 @@
+name: Unified KR Strict v0.02
+
+on:
+  push:
+    branches:
+      - agent/unified-market-universe-v001
+    paths:
+      - toss_unified_kr_strict_execution_v001.py
+      - toss_unified_kr_strict_execution_v002.py
+      - toss_noramu_strict_execution_v001.py
+      - toss_noramu_raw_windows_v001.py
+      - .github/workflows/unified-kr-strict-v002.yml
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -U pandas numpy requests
+      - name: Compile
+        run: python -m py_compile toss_unified_kr_strict_execution_v001.py toss_unified_kr_strict_execution_v002.py
+      - name: Self-test
+        run: python toss_unified_kr_strict_execution_v002.py --self-test
+      - name: Safety
+        run: |
+          grep -q 'NO_ORDERS' toss_unified_kr_strict_execution_v002.py
+          grep -q 'LIVE_APPROVAL = False' toss_unified_kr_strict_execution_v002.py
+          ! grep -E '/orders|X-Tossinvest-Account' toss_unified_kr_strict_execution_v002.py
