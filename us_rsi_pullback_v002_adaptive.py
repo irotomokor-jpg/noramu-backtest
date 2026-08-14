@@ -42,7 +42,7 @@ def read_symbol(db: Path, symbol: str, start: str | None=None, end: str | None=N
     if df.empty: return df
     df["ts"] = parse_ts(df["timestamp"])
     for c in ["open","high","low","close","volume"]: df[c]=pd.to_numeric(df[c], errors="coerce")
-    df=df.dropna(subset=["ts","open","high","low","close"]).sort_values("ts")
+    df=df.dropna(subset=["ts","open","high","low","close"]).sort_values("ts").drop_duplicates(subset=["ts"], keep="last")
     return df
 
 
@@ -153,7 +153,7 @@ def entry_signal(variant,b,prior,score):
 
 
 def compute_mae_mfe(exe_day, entry_ts, exit_ts, entry_px):
-    x=regular(exe_day); x=x[(x.ts>=entry_ts)&(x.ts<=exit_ts)]
+    x=regular(exe_day); x=x[(x.ts>=entry_ts)&(x.ts<exit_ts)]
     if x.empty:return np.nan,np.nan
     return float(x.low.min()/entry_px-1), float(x.high.max()/entry_px-1)
 
