@@ -3,7 +3,7 @@
   "forward_signal_start_us_date": "2026-08-11",
   "historical_data_seen_through": "2026-08-10 US session",
   "first_possible_pnl_rule": "only return after first forward signal close; no return crossing freeze boundary",
-  "as_of_data_date": "2026-08-12",
+  "as_of_data_date": "2026-08-13",
   "starting_equity_per_strategy": 10000.0,
   "costs_bps_side": [
     5.0,
