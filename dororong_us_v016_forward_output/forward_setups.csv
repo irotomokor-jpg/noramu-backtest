@@ -1,1 +1,2 @@
-﻿
+﻿ticker,setup_id,touch_date,activation_date,repeat_touch,touch_low,box_start_i,breakout_i,retest_i,setup_i,box_low,box_high,breakout_high,retest_low,stop,atr,breakout_volume_ok,had_failed_break,daily_ma60,daily_ma240,daily_env_lower
+INTU,DAGG|INTU|5078,2026-08-13,2026-08-13,0,328.6000061035156,5058,5077,5077,5078,328.6000061035156,347.5,347.5,332.3999938964844,327.65849879491515,3.7660292344018265,1,0,,,
