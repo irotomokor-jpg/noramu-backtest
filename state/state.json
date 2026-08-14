@@ -1570,6 +1570,7 @@
     "NLEVEL_RR|AMD|4T|868|870|871",
     "NLEVEL_RR|AMD|5T|241|242|243",
     "NLEVEL_RR|AMD|5T|243|245|246",
+    "NLEVEL_RR|AMD|5T|868|870|871",
     "NLEVEL_RR|AMD|6T|638|639|640",
     "NLEVEL_RR|AMD|6T|641|642|643",
     "NLEVEL_RR|AMD|6T|645|646|647",
@@ -11244,6 +11245,7 @@
     "NLEVEL_RR|MRK|2T|851|857|859",
     "NLEVEL_RR|MRK|2T|854|860|862",
     "NLEVEL_RR|MRK|2T|865|871|873",
+    "NLEVEL_RR|MRK|2T|871|872|873",
     "NLEVEL_RR|MRK|3T|414|415|416",
     "NLEVEL_RR|MRK|3T|417|418|419",
     "NLEVEL_RR|MRK|3T|421|422|423",
@@ -16111,6 +16113,7 @@
     "NLEVEL_RR|TMUS|3T|616|621|622",
     "NLEVEL_RR|TMUS|3T|619|624|625",
     "NLEVEL_RR|TMUS|3T|630|635|636",
+    "NLEVEL_RR|TMUS|3T|866|872|873",
     "NLEVEL_RR|TMUS|4T|667|669|670",
     "NLEVEL_RR|TMUS|4T|670|672|673",
     "NLEVEL_RR|TMUS|4T|674|676|677",
@@ -18303,10 +18306,10 @@
     "NLEVEL_RR|ZTS|6T|269|270|271",
     "NLEVEL_RR|ZTS|6T|280|281|282"
   ],
-  "runs": 17,
-  "last_run_utc": "2026-08-14 20:16:51.097080+00:00",
+  "runs": 18,
+  "last_run_utc": "2026-08-14 21:46:34.940700+00:00",
   "last_resolved_tickers": 145,
-  "last_new_signal_count": 8,
+  "last_new_signal_count": 3,
   "recovered_from_workflow_run": 31354489202,
   "recovery_note": "Original baseline artifact recorded 2074 seen setup_ids. The list is intentionally rebuilt on the next scan; only setups confirmed after initialized_at_utc can be logged as prospective."
 }
