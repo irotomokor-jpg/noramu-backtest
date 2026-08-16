@@ -67,6 +67,19 @@ def find_main(src: str):
     raise SystemExit("BLOCK_MAIN_NOT_FOUND")
 
 
+def inject_after_exact_line(src: str, exact_stripped: str, new_stripped: str) -> str:
+    lines = src.splitlines(keepends=True)
+    matches = [i for i, line in enumerate(lines) if line.strip() == exact_stripped]
+    if len(matches) != 1:
+        raise SystemExit(f"BLOCK_CAPFEE_BUY_ANCHOR_COUNT={len(matches)}")
+    i = matches[0]
+    line = lines[i]
+    indent = line[: len(line) - len(line.lstrip())]
+    newline = "\r\n" if line.endswith("\r\n") else "\n"
+    lines.insert(i + 1, indent + new_stripped + newline)
+    return "".join(lines)
+
+
 def main():
     if not SRC.exists():
         raise SystemExit(f"MISSING={SRC}")
@@ -79,11 +92,11 @@ def main():
     lines = src.splitlines(keepends=True)
     lines[main_node.lineno - 1:main_node.lineno - 1] = [HELPER + "\n"]
     candidate = "".join(lines)
-    anchor = 'cash = fee_safe_order_amount(min(cash, initial_budget))'
-    guarded = anchor + '\n                cash = v014_frozen_buy_cap_guard(ledger, cash)'
-    if anchor not in candidate:
-        raise SystemExit("BLOCK_CAPFEE_BUY_ANCHOR_NOT_FOUND")
-    candidate = candidate.replace(anchor, guarded, 1)
+    candidate = inject_after_exact_line(
+        candidate,
+        'cash = fee_safe_order_amount(min(cash, initial_budget))',
+        'cash = v014_frozen_buy_cap_guard(ledger, cash)',
+    )
     required = [
         "LIVE_CAPFEE_V002_BEGIN",
         "V014_CROSS_STRATEGY_HARD_CAP_GUARD_BEGIN",
@@ -102,6 +115,7 @@ def main():
     print(f"OUTPUT={OUT}")
     print("CAPFEE_V002_RETAINED=True")
     print("CROSS_STRATEGY_HARD_CAP_GUARD=True")
+    print("INDENTATION_INJECTION=SOURCE_LINE_PRESERVED")
     print("ACTIVE_ENGINE_CHANGED=False")
 
 
