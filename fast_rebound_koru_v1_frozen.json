@@ -1,0 +1,47 @@
+{
+  "version": "FAST_REBOUND_KORU_V1",
+  "mode": "FORWARD_SHADOW_NO_ORDERS",
+  "signal_symbol": "EWY",
+  "execution_symbol": "KORU",
+  "entry": {
+    "rsi2_max": 10.0,
+    "shock_z_max": -1.4,
+    "vwap_z_max": -1.05,
+    "min_abs_5m": 0.0025,
+    "vol_peak3_min": 1.6,
+    "close_pos_min": 0.68,
+    "rv_rel_min": 0.85,
+    "confirm": "PREV_HIGH_RECLAIM",
+    "entry_start_et": "09:40",
+    "entry_end_et": "14:30",
+    "execution": "NEXT_RAW_1M_OPEN"
+  },
+  "exit": {
+    "stop_pct": 0.004,
+    "take_profit_pct": 0.006,
+    "max_hold_minutes": 10,
+    "cutoff_et": "14:55",
+    "trigger": "COMPLETED_1M_BAR",
+    "execution": "NEXT_RAW_1M_OPEN",
+    "both_stop_and_tp_same_bar": "STOP_CONSERVATIVE"
+  },
+  "frequency": {
+    "cooldown_minutes": 8,
+    "max_trades_per_day": 3
+  },
+  "regime_guard": "NONE",
+  "historical_reference": {
+    "period": "2022-01-03..2026-08-14",
+    "standard_cost": "ACCOUNT_FEE_PLUS_2BPS_SLIPPAGE_PER_SIDE",
+    "stress_cost": "ACCOUNT_FEE_PLUS_5BPS_SLIPPAGE_PER_SIDE",
+    "trades": 451,
+    "standard_profit_factor": 1.3987556168630026,
+    "standard_expectancy_bps": 8.723628187633379,
+    "stress_profit_factor": 1.1088728368074467,
+    "stress_expectancy_bps": 2.7201944405022274,
+    "historical_shadow_candidate": true,
+    "execution_stress_confirmed": false
+  },
+  "order_writes_enabled": false,
+  "frozen_at": "2026-08-16"
+}
