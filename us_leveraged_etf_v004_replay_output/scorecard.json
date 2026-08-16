@@ -1,0 +1,44 @@
+{
+  "version": "v0.04-US-LEVERAGED-ETF-AUG03-10-REPLAY-AUDIT",
+  "purpose": "EXECUTION_AUDIT_NOT_OOS",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "replay_start": "2026-08-03",
+  "replay_end_inclusive": "2026-08-10",
+  "cost_bps_side": 10.0,
+  "frozen": {
+    "TQQQ": {
+      "base": "QQQ",
+      "signal_mode": "SELF",
+      "band": 0.03,
+      "ma_days": 200
+    },
+    "SOXL": {
+      "base": "SOXX",
+      "signal_mode": "SELF",
+      "band": 0.08,
+      "ma_days": 200
+    }
+  },
+  "results": [
+    {
+      "lever": "TQQQ",
+      "initial_asset_from_prior_close": "LEVER",
+      "days": 6,
+      "switches": 0,
+      "ending_equity": 11420.612800215542,
+      "return_pct": 0.14206128002155416,
+      "final_next_day_asset": "LEVER"
+    },
+    {
+      "lever": "SOXL",
+      "initial_asset_from_prior_close": "LEVER",
+      "days": 6,
+      "switches": 0,
+      "ending_equity": 11331.938512613906,
+      "return_pct": 0.1331938512613906,
+      "final_next_day_asset": "LEVER"
+    }
+  ],
+  "program_contract": "prior close signal determines asset held next session; close signal can switch asset for following session"
+}
