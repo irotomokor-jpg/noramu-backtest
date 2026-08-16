@@ -43,12 +43,6 @@ DOWNLOAD_START = "2011-01-01"
 OUTDIR = Path("sor_entry_v007_robustness_output")
 
 
-def safe_ratio(num: float, den: float) -> float:
-    if not np.isfinite(num) or not np.isfinite(den) or den <= 0:
-        return np.nan
-    return num / den
-
-
 def build_window_score(summary: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for (period, strategy), g in summary.groupby(["period", "strategy"], sort=False):
@@ -105,16 +99,16 @@ def build_overall_score(summary: pd.DataFrame, window_score: pd.DataFrame) -> pd
     ).reset_index(drop=True)
 
 
-def build_signal_row(period: str, ticker: str, candidates: list[dict], diag: dict) -> dict:
+def build_signal_row(period: str, ticker: str, diag: dict) -> dict:
     return {
         "period": period,
         "ticker": ticker,
         "raw_signals": int(diag["raw_signals"]),
         "gap_rejects": int(diag["gap_rejects"]),
         "stop_rejects": int(diag["stop_rejects"]),
-        "accepted_candidates": int(len(candidates)),
-        "pivot_stops": int(sum(1 for c in candidates if c["stop_source"] == "pivot")),
-        "fallback_stops": int(sum(1 for c in candidates if c["stop_source"] != "pivot")),
+        "accepted_candidates": int(diag["accepted_candidates"]),
+        "pivot_stops": int(diag["pivot_stops"]),
+        "fallback_stops": int(diag["fallback_stops"]),
     }
 
 
@@ -165,37 +159,37 @@ def main() -> None:
                         print(f"  {ticker}: skipped, not enough prefix bars ({len(prefix)})")
                         continue
 
+                    # Keep all earlier bars for EMA/ATR/volume/pivot warm-up, but prevent
+                    # pre-window entry signals from contaminating this period's diagnostics.
                     df = v4.add_sor_setup(prefix)
-                    all_candidates, diag = v4.build_candidates(df)
-                    candidates = [
-                        c
-                        for c in all_candidates
-                        if pd.Timestamp(c["signal_time"]) >= pd.Timestamp(period_start)
-                    ]
+                    period_start_ts = pd.Timestamp(period_start)
+                    df_eval = df.copy()
+                    df_eval.loc[df_eval.index < period_start_ts, "entry_signal"] = False
+                    candidates, diag = v4.build_candidates(df_eval)
 
-                    signal_rows.append(build_signal_row(period_name, ticker, candidates, diag))
+                    signal_rows.append(build_signal_row(period_name, ticker, diag))
                     print(
-                        f"  {ticker}: candidates={len(candidates)} "
-                        f"(prefix_raw={diag['raw_signals']}, gap_rejects={diag['gap_rejects']})"
+                        f"  {ticker}: signals={diag['raw_signals']} accepted={diag['accepted_candidates']} "
+                        f"gap_rejects={diag['gap_rejects']} stop_rejects={diag['stop_rejects']}"
                     )
 
                     if not candidates:
                         continue
 
                     for strategy in STRATEGIES:
-                        sequential = v4.run_mode(df, candidates, strategy, sequential=True)
+                        sequential = v4.run_mode(df_eval, candidates, strategy, sequential=True)
                         if sequential.empty:
                             continue
 
-                        # Because df is truncated at the period end, any open trade is
-                        # marked out at that period's last available close by V004.
+                        # df_eval is truncated at the period end. Any trade still open there
+                        # is marked out at the period's last available close by V004.
                         rtrades, rsummary = apply_risk_sizing(ticker, strategy, sequential)
                         if rtrades.empty:
                             continue
 
                         rsummary["period"] = period_name
                         rsummary["period_start"] = period_start
-                        rsummary["period_end"] = period_end if period_end is not None else str(df.index.max().date())
+                        rsummary["period_end"] = period_end if period_end is not None else str(df_eval.index.max().date())
                         summary_rows.append(rsummary)
 
                         rtrades.insert(0, "period", period_name)
