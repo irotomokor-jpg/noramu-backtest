@@ -5,3 +5,4 @@ venv/
 cache/
 *.tmp
 .DS_Store
+sor_exit_v001_output/
