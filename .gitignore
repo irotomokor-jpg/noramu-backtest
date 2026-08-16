@@ -6,3 +6,4 @@ cache/
 *.tmp
 .DS_Store
 sor_exit_v001_output/
+toss_credentials.local.json
