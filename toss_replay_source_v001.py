@@ -28,6 +28,8 @@ from typing import Any, Callable, Iterable, Optional
 
 import requests
 
+from toss_credentials import load_saved_toss_credentials
+
 BASE_URL = "https://openapi.tossinvest.com"
 TOKEN_PATH = "/oauth2/token"
 MODE = "TOSS_REPLAY_READ_ONLY_NO_ORDERS"
@@ -91,10 +93,21 @@ class TossReplayClient:
         timeout: float = 15.0,
         gate: Optional[RateGate] = None,
     ):
-        self.client_id = client_id or os.getenv("TOSS_CLIENT_ID", "")
-        self.client_secret = client_secret or os.getenv("TOSS_CLIENT_SECRET", "")
+        env_client_id = os.getenv("TOSS_CLIENT_ID", "").strip()
+        env_client_secret = os.getenv("TOSS_CLIENT_SECRET", "").strip()
+        saved_client_id = ""
+        saved_client_secret = ""
+        if not (client_id or env_client_id) or not (client_secret or env_client_secret):
+            saved_client_id, saved_client_secret = load_saved_toss_credentials()
+
+        # Explicit args > environment variables > OS credential store.
+        self.client_id = (client_id or env_client_id or saved_client_id).strip()
+        self.client_secret = (client_secret or env_client_secret or saved_client_secret).strip()
         if not self.client_id or not self.client_secret:
-            raise ValueError("TOSS_CLIENT_ID and TOSS_CLIENT_SECRET are required")
+            raise ValueError(
+                "Toss Open API credentials are missing. Set TOSS_CLIENT_ID/TOSS_CLIENT_SECRET "
+                "or run: python toss_credentials.py setup"
+            )
         self.session = session or requests.Session()
         self.base_url = base_url.rstrip("/")
         self.timeout = float(timeout)
@@ -117,7 +130,6 @@ class TossReplayClient:
                 message = str(err.get("message", body))
                 request_id = str(err.get("requestId", response.headers.get("X-Request-Id", "")))
             else:
-                # Some edge/auth responses can be simpler than the normal envelope.
                 code = str(err or body.get("code") or "http-error")
                 message = str(body.get("message") or err or body)
                 request_id = str(body.get("requestId") or response.headers.get("X-Request-Id", ""))
@@ -130,7 +142,6 @@ class TossReplayClient:
         token = ""
         expires: Any = 300
         if isinstance(result, str):
-            # Observed live Toss OAuth response shape.
             token = result
             expires = body.get("expiresIn") or body.get("expires_in") or 300
         elif isinstance(result, dict):
@@ -311,7 +322,6 @@ def _write_json(path: Path, obj: Any) -> None:
 
 
 def default_probe_suite() -> list[dict[str, Any]]:
-    # Small representative suite first; do not download full universes until depth is proven.
     return [
         {"kind":"stock", "symbol":"035420", "label":"NORAMU_KR_NAVER", "interval":"1m", "adjusted":False},
         {"kind":"stock", "symbol":"AAPL", "label":"DORO_US", "interval":"1m", "adjusted":False},
@@ -324,7 +334,6 @@ def default_probe_suite() -> list[dict[str, Any]]:
 
 def self_test() -> None:
     assert MODE == "TOSS_REPLAY_READ_ONLY_NO_ORDERS" and LIVE_APPROVAL is False
-    # Token response shapes: observed string result and conventional object result.
     assert TossReplayClient._token_from_body({"result":"abc"})[0] == "abc"
     assert TossReplayClient._token_from_body({"result":{"accessToken":"xyz","expiresIn":600}}) == ("xyz", 600)
     suite = default_probe_suite()
@@ -348,7 +357,6 @@ def main() -> None:
     rows = []
     for spec in default_probe_suite():
         target = args.target
-        # US timestamps may carry US offsets; ISO absolute instants remain comparable.
         r = c.probe_depth(kind=spec["kind"], symbol=spec["symbol"], interval=spec["interval"],
                           target=target, adjusted=bool(spec.get("adjusted", False)), max_pages=args.max_pages)
         d = asdict(r); d["label"] = spec["label"]; rows.append(d)
