@@ -5,13 +5,14 @@ from datetime import timedelta
 import json
 from pathlib import Path
 import sqlite3
+import time
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 import sor_v013_2024_1m_audit as v13
-from toss_replay_source_v001 import TossReplayClient
+from toss_replay_source_v001 import TossReplayClient, TossReplayError
 from toss_sqlite_cache_v001 import db_connect, normalized_tuple, safe_page
 
 MODE = "SOR_V0133_RTH_DAY_COLLECTOR_NO_ORDERS"
@@ -21,6 +22,7 @@ OUTDIR = v13.OUTDIR
 DB_PATH = v13.DB_PATH
 MIN_REGULAR_BARS = 375
 MIN_EARLY_BARS = 195
+TOKEN_RETRY_ATTEMPTS = 4
 
 
 def _local_day_rows(con: sqlite3.Connection, ticker: str, day: str, adjusted: bool = True) -> pd.DataFrame:
@@ -80,6 +82,12 @@ def _manual_before(oldest: str) -> str:
     if dt.tzinfo is None:
         dt = dt.tz_localize("UTC")
     return (dt - pd.Timedelta(seconds=1)).isoformat()
+
+
+def _new_client(chart_gap: float) -> TossReplayClient:
+    client = TossReplayClient()
+    client.gate._gap["MARKET_DATA_CHART"] = max(0.23, chart_gap)
+    return client
 
 
 def collect_one_day(
@@ -143,9 +151,6 @@ def collect_one_day(
         oldest_local = local_times[oldest_i]
         oldest_stamp = stamps[oldest_i]
 
-        # Once the fetched page has reached the RTH open (or earlier), the day
-        # has been fully traversed for our replay purpose. We do not need to
-        # paginate across the previous trading day.
         if oldest_local.date() < target_date or (
             oldest_local.date() == target_date
             and oldest_local.hour * 60 + oldest_local.minute <= 570
@@ -156,9 +161,6 @@ def collect_one_day(
         if nxt:
             new_before = str(nxt)
         else:
-            # Observed Toss US behaviour can omit nextBefore at a session/page
-            # boundary even when earlier same-day candles are still queryable.
-            # before is inclusive, so use one second before the oldest candle.
             new_before = _manual_before(oldest_stamp)
             manual_steps += 1
 
@@ -184,28 +186,98 @@ def collect_one_day(
         "last": str(df.index[-1]) if len(df) else "",
         "manual_before_steps": int(manual_steps),
         "stop_reason": stop_reason,
+        "token_retries": 0,
+        "error": "",
     }
+
+
+def collect_one_day_resilient(
+    con: sqlite3.Connection,
+    client: TossReplayClient,
+    ticker: str,
+    day: str,
+    chart_gap: float,
+) -> tuple[dict[str, Any], TossReplayClient]:
+    """Retry a date with a completely fresh OAuth client on auth failures.
+
+    The SQLite inserts from earlier successful pages are durable, so restarting
+    the date is safe (INSERT OR IGNORE) and does not lose or duplicate candles.
+    """
+    last_error = ""
+    for attempt in range(TOKEN_RETRY_ATTEMPTS):
+        try:
+            result = collect_one_day(con, client, ticker, day)
+            result["token_retries"] = attempt
+            return result, client
+        except TossReplayError as exc:
+            last_error = repr(exc)
+            auth_error = exc.status == 401 and exc.code in {
+                "invalid-token", "expired-token", "login-user-not-found"
+            }
+            if not auth_error:
+                raise
+            print(
+                f"AUTH_RETRY {ticker} {day} attempt={attempt+1}/{TOKEN_RETRY_ATTEMPTS} "
+                f"status={exc.status} code={exc.code}",
+                flush=True,
+            )
+            # Toss can reject a token even after the in-client 401 refresh.
+            # Drop the entire Session/client and obtain a new client-credentials
+            # token before retrying the same day.
+            try:
+                client.session.close()
+            except Exception:
+                pass
+            time.sleep(min(4.0, 0.75 * (attempt + 1)))
+            client = _new_client(chart_gap)
+
+    df = _local_day_rows(con, ticker, day, adjusted=True)
+    return ({
+        "ticker": ticker,
+        "date": day,
+        "pages": 0,
+        "api_rows": 0,
+        "inserted_rows": 0,
+        "rth_rows_after": int(len(df)),
+        "coverage_ok": bool(coverage_ok(df)),
+        "first": str(df.index[0]) if len(df) else "",
+        "last": str(df.index[-1]) if len(df) else "",
+        "manual_before_steps": 0,
+        "stop_reason": "AUTH_ERROR_CONTINUE",
+        "token_retries": TOKEN_RETRY_ATTEMPTS,
+        "error": last_error,
+    }, client)
 
 
 def probe(outdir: Path, db_path: Path, ticker: str, day: str, chart_gap: float) -> dict[str, Any]:
     con = db_connect(db_path)
-    client = TossReplayClient()
-    client.gate._gap["MARKET_DATA_CHART"] = max(0.23, chart_gap)
+    client = _new_client(chart_gap)
     try:
         before_df = _local_day_rows(con, ticker, day, adjusted=True)
-        result = collect_one_day(con, client, ticker, day)
+        result, client = collect_one_day_resilient(con, client, ticker, day, chart_gap)
         result["rth_rows_before"] = int(len(before_df))
     finally:
+        try:
+            client.session.close()
+        except Exception:
+            pass
         con.close()
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return result
 
 
+def _checkpoint(outdir: Path, results: list[dict[str, Any]]) -> None:
+    if not results:
+        return
+    pd.DataFrame(results).to_csv(
+        outdir / "v0133_rth_day_collection.partial.csv", index=False, encoding="utf-8-sig"
+    )
+
+
 def collect_all(outdir: Path, db_path: Path, chart_gap: float) -> pd.DataFrame:
     days = required_days(outdir)
     con = db_connect(db_path)
-    client = TossReplayClient()
-    client.gate._gap["MARKET_DATA_CHART"] = max(0.23, chart_gap)
+    client = _new_client(chart_gap)
     results: list[dict[str, Any]] = []
     already = 0
     try:
@@ -221,19 +293,45 @@ def collect_all(outdir: Path, db_path: Path, chart_gap: float) -> pd.DataFrame:
                     "coverage_ok": True,
                     "first": str(current.index[0]), "last": str(current.index[-1]),
                     "manual_before_steps": 0, "stop_reason": "ALREADY_COMPLETE",
+                    "token_retries": 0, "error": "",
                 }
             else:
-                result = collect_one_day(con, client, ticker, day)
+                try:
+                    result, client = collect_one_day_resilient(
+                        con, client, ticker, day, chart_gap
+                    )
+                except Exception as exc:
+                    # One pathological ticker/day must not kill a multi-hour
+                    # collection. It will be retried on the next run.
+                    current = _local_day_rows(con, ticker, day, adjusted=True)
+                    result = {
+                        "ticker": ticker, "date": day, "pages": 0, "api_rows": 0,
+                        "inserted_rows": 0, "rth_rows_after": int(len(current)),
+                        "coverage_ok": bool(coverage_ok(current)),
+                        "first": str(current.index[0]) if len(current) else "",
+                        "last": str(current.index[-1]) if len(current) else "",
+                        "manual_before_steps": 0,
+                        "stop_reason": "UNEXPECTED_ERROR_CONTINUE",
+                        "token_retries": 0, "error": repr(exc),
+                    }
+                    print(f"DAY_ERROR_CONTINUE {ticker} {day}: {exc!r}", flush=True)
             results.append(result)
+
             if (i + 1) % 25 == 0 or not result["coverage_ok"] or i + 1 == total:
                 complete = sum(int(x["coverage_ok"]) for x in results)
                 print(
                     f"RTH_DAY {i+1}/{total} {ticker} {day} rows={result['rth_rows_after']} "
                     f"ok={int(result['coverage_ok'])} pages={result['pages']} "
-                    f"complete_so_far={complete}",
+                    f"complete_so_far={complete} auth_retry={result.get('token_retries',0)}",
                     flush=True,
                 )
+                _checkpoint(outdir, results)
     finally:
+        _checkpoint(outdir, results)
+        try:
+            client.session.close()
+        except Exception:
+            pass
         con.close()
 
     df = pd.DataFrame(results)
@@ -248,6 +346,7 @@ def collect_all(outdir: Path, db_path: Path, chart_gap: float) -> pd.DataFrame:
         "api_rows": int(df["api_rows"].sum()) if len(df) else 0,
         "inserted_rows": int(df["inserted_rows"].sum()) if len(df) else 0,
         "manual_before_steps": int(df["manual_before_steps"].sum()) if len(df) else 0,
+        "token_retries": int(df["token_retries"].sum()) if len(df) else 0,
         "incomplete_days": int((~df["coverage_ok"]).sum()) if len(df) else 0,
         "stop_reasons": df["stop_reason"].value_counts().to_dict() if len(df) else {},
     }
