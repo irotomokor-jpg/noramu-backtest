@@ -145,9 +145,14 @@ def run_one(
             reason = None
             for j in range(entry_i, n):
                 if not bool(df["trend"].iloc[j]):
-                    exit_i = j
-                    exit_px = float(df["Open"].iloc[j]) if j > entry_i else float(df["Close"].iloc[j])
-                    reason = "trend_off"
+                    if j < n - 1:
+                        exit_i = j + 1
+                        exit_px = float(df["Open"].iloc[j + 1])
+                        reason = "trend_off_next_open"
+                    else:
+                        exit_i = j
+                        exit_px = float(df["Close"].iloc[j])
+                        reason = "trend_off_end"
                     break
             if exit_i is None:
                 exit_i = n - 1
@@ -183,6 +188,13 @@ def run_one(
             h = float(df["High"].iloc[j])
             l = float(df["Low"].iloc[j])
 
+            # Once TP1 was hit on a prior bar, today's stop is known before today's bar opens.
+            if tp1_hit and event_n is not None:
+                left = max(entry_i, j - event_n)
+                if left < j:
+                    event_low = float(df["Low"].iloc[left:j].min())
+                    active_stop = max(active_stop, event_low)
+
             # Conservative same-bar convention: known stop is checked before target.
             if l <= active_stop:
                 final_exit_px = stop_fill(o, active_stop)
@@ -202,17 +214,16 @@ def run_one(
                     reason = "same_bar_BE_after_TP1"
                     break
 
-            if tp1_hit and event_n is not None:
-                left = max(entry_i, j - event_n)
-                if left < j:
-                    event_low = float(df["Low"].iloc[left:j].min())
-                    active_stop = max(active_stop, event_low)
-
-            # Keep a trend-off fallback so dead positions do not remain open forever.
+            # Trend is known only at the close, so execute that fallback at the next bar open.
             if not bool(df["trend"].iloc[j]):
-                final_exit_px = float(df["Close"].iloc[j])
-                final_exit_i = j
-                reason = "trend_off"
+                if j < n - 1:
+                    final_exit_px = float(df["Open"].iloc[j + 1])
+                    final_exit_i = j + 1
+                    reason = "trend_off_next_open"
+                else:
+                    final_exit_px = float(df["Close"].iloc[j])
+                    final_exit_i = j
+                    reason = "trend_off_end"
                 break
 
         if final_exit_i is None:
