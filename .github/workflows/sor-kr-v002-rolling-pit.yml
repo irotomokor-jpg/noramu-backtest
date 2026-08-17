@@ -1,5 +1,6 @@
 name: SOR KR v0.02 Rolling PIT
 
+# Trigger after workflow registration on the research branch.
 on:
   workflow_dispatch:
   push:
