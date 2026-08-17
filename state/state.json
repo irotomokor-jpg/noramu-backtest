@@ -16736,6 +16736,7 @@
     "NLEVEL_RR|MU|3T|336|337|338",
     "NLEVEL_RR|MU|3T|339|340|341",
     "NLEVEL_RR|MU|3T|350|351|352",
+    "NLEVEL_RR|MU|3T|357|359|361",
     "NLEVEL_RR|MU|3T|364|366|368",
     "NLEVEL_RR|MU|3T|374|376|378",
     "NLEVEL_RR|MU|3T|378|380|382",
@@ -21893,6 +21894,7 @@
     "NLEVEL_RR|SLB|5T|245|248|250",
     "NLEVEL_RR|SLB|5T|519|520|522",
     "NLEVEL_RR|SLB|5T|520|521|523",
+    "NLEVEL_RR|SLB|5T|522|523|524",
     "NLEVEL_RR|SLB|5T|522|523|525",
     "NLEVEL_RR|SLB|5T|524|525|527",
     "NLEVEL_RR|SLB|5T|526|527|529",
@@ -22659,6 +22661,7 @@
     "NLEVEL_RR|TFC|2T|863|864|866",
     "NLEVEL_RR|TFC|2T|865|866|868",
     "NLEVEL_RR|TFC|3T|245|246|248",
+    "NLEVEL_RR|TFC|3T|592|593|595",
     "NLEVEL_RR|TFC|3T|599|600|602",
     "NLEVEL_RR|TFC|3T|608|609|610",
     "NLEVEL_RR|TFC|3T|609|610|611",
@@ -26377,10 +26380,10 @@
     "NLEVEL_RR|ZTS|6T|269|270|271",
     "NLEVEL_RR|ZTS|6T|280|281|282"
   ],
-  "runs": 23,
-  "last_run_utc": "2026-08-17 21:48:56.825021+00:00",
+  "runs": 24,
+  "last_run_utc": "2026-08-17 23:41:55.169750+00:00",
   "last_resolved_tickers": 145,
-  "last_new_signal_count": 119,
+  "last_new_signal_count": 0,
   "recovered_from_workflow_run": 31354489202,
   "recovery_note": "Original baseline artifact recorded 2074 seen setup_ids. The list is intentionally rebuilt on the next scan; only setups confirmed after initialized_at_utc can be logged as prospective."
 }
