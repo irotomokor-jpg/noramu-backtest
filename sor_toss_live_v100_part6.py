@@ -17,6 +17,43 @@ def mark_trend_exits(state: dict[str, Any]) -> None:
     save_state(state)
 
 
+def setup(client: TossLiveClient, account_seq: int | None, arm_live: bool) -> None:
+    """One-time live configuration. Only ordinary BROKERAGE accounts are accepted."""
+    accounts = client.accounts()
+    if not accounts:
+        raise RuntimeError("No Toss account returned by API")
+    tradeable = [a for a in accounts if str(a.get("accountType") or "").upper() == "BROKERAGE"]
+    print("AVAILABLE ACCOUNTS")
+    for a in accounts:
+        print({
+            "accountSeq": a.get("accountSeq"),
+            "accountNo": masked_account_no(a.get("accountNo", "")),
+            "accountType": a.get("accountType"),
+            "liveEligible": a in tradeable,
+        })
+    if not tradeable:
+        raise RuntimeError("No BROKERAGE account is available for SOR live trading")
+    if account_seq is None:
+        if len(tradeable) == 1:
+            account_seq = int(tradeable[0]["accountSeq"])
+        else:
+            account_seq = int(input("Select BROKERAGE accountSeq: ").strip())
+    valid = {int(a["accountSeq"]) for a in tradeable}
+    if int(account_seq) not in valid:
+        raise RuntimeError(f"accountSeq {account_seq} is not an eligible BROKERAGE account")
+    cfg = LiveConfig(accountSeq=int(account_seq), liveEnabled=bool(arm_live))
+    validate_frozen_config(cfg)
+    atomic_json(CONFIG_PATH, cfg.__dict__)
+    if not STATE_PATH.exists():
+        save_state(default_state())
+    print(json.dumps({
+        "saved": str(CONFIG_PATH),
+        "accountSeq": cfg.accountSeq,
+        "accountType": "BROKERAGE",
+        "liveEnabled": cfg.liveEnabled,
+    }, ensure_ascii=False, indent=2))
+
+
 def status(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any]) -> None:
     accounts = client.accounts()
     selected = next((a for a in accounts if int(a.get("accountSeq", -1)) == cfg.accountSeq), None)
@@ -28,6 +65,7 @@ def status(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any]) -> No
         "liveEnabledInConfig": cfg.liveEnabled,
         "killFilePresent": KILL_FILE.exists(),
         "accountSeq": cfg.accountSeq,
+        "accountType": selected.get("accountType") if selected else None,
         "accountNoMasked": masked_account_no(selected.get("accountNo", "")) if selected else None,
         "usdCashBuyingPower": cash,
         "managedPositionMarketValueUsd": managed_value,
@@ -56,7 +94,9 @@ def daemon(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_l
     require_live(cfg, cli_live)
     log_event("DAEMON_START", strategyVersion=STRATEGY_VERSION, accountSeq=cfg.accountSeq)
     scan(client, state)
-    last_scan_key = f"entry-{pd.Timestamp.now(tz=NY_TZ).strftime('%Y-%m-%d')}"
+    # Intentionally blank: force one more scan in the pre-open/open window.
+    # This catches daily data that became available after daemon startup.
+    last_scan_key = ""
     last_trend_key = ""
     while True:
         try:
