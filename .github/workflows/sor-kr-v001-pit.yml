@@ -1,0 +1,97 @@
+name: SOR KR v0.01 PIT Backtest
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [research/sor-exit-v001]
+    paths:
+      - "sor_kr_v001_pit.py"
+      - "sor_entry_v004_breakout.py"
+      - "sor_v010_shared_portfolio.py"
+      - "kr_level_rr_v026_pit.py"
+      - "requirements-kr.txt"
+      - ".github/workflows/sor-kr-v001-pit.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sor-kr-v001-pit
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: research/sor-exit-v001
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements-kr.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-kr.txt
+
+      - name: Compile and self-test
+        run: |
+          python -m py_compile sor_kr_v001_pit.py
+          python sor_kr_v001_pit.py --self-test
+
+      - name: Run KR frozen SOR PIT backtest
+        run: |
+          rm -rf sor_kr_v001_pit_output
+          mkdir -p sor_kr_v001_pit_output kr_state_pit
+          python sor_kr_v001_pit.py \
+            --outdir sor_kr_v001_pit_output \
+            --state-dir kr_state_pit \
+            --top-n 40 \
+            --min-market-coverage 30 \
+            --download-start 2022-01-01 \
+            --end-exclusive 2026-08-18
+
+      - name: Verify outputs
+        run: |
+          test -f sor_kr_v001_pit_output/RUN_VALIDATION.txt
+          grep -q '^PASS' sor_kr_v001_pit_output/RUN_VALIDATION.txt
+          cat sor_kr_v001_pit_output/RUN_VALIDATION.txt
+          echo "--- scorecard ---"
+          cat sor_kr_v001_pit_output/scorecard.csv
+          echo "--- trade stats ---"
+          cat sor_kr_v001_pit_output/trade_stats.csv
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sor-kr-v001-pit-${{ github.run_number }}
+          path: |
+            sor_kr_v001_pit_output/
+            kr_state_pit/sor_kr_v001_universe_pit.csv
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist latest result
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sor_kr_v001_pit_output kr_state_pit/sor_kr_v001_universe_pit.csv
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "sor: persist KR v0.01 PIT backtest [skip ci]"
+          for attempt in 1 2 3 4; do
+            git fetch origin research/sor-exit-v001
+            if ! git rebase origin/research/sor-exit-v001; then git rebase --abort || true; exit 1; fi
+            if git push origin HEAD:research/sor-exit-v001; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
