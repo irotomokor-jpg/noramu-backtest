@@ -286,4 +286,127 @@ def valid_us_trigger(price: float) -> str:
     # Long protective stop rounds DOWN, never above the intended stop.
     px = math.floor((price + 1e-12) / tick) * tick
     decimals = 4 if px < 1 else 2
-    return f"{px:.{decimals}f"
+    return f"{px:.{decimals}f}"
+
+
+def stop_expire_date() -> str:
+    return (pd.Timestamp.now(tz=NY_TZ).date() + timedelta(days=STOP_EXPIRY_DAYS)).isoformat()
+
+
+def stop_payload(ticker: str, quantity: int, trigger: float, cid: str | None = None) -> dict[str, Any]:
+    p: dict[str, Any] = {
+        "symbol": ticker,
+        "type": "SINGLE",
+        "quantity": str(int(quantity)),
+        "orderType": "MARKET",
+        "expireDate": stop_expire_date(),
+        "first": {"orderSide": "SELL", "triggerPrice": valid_us_trigger(trigger)},
+        "confirmHighValueOrder": False,
+    }
+    if cid:
+        p["clientOrderId"] = cid
+    return p
+
+
+def stop_modify_payload(quantity: int, trigger: float) -> dict[str, Any]:
+    return {
+        "type": "SINGLE",
+        "quantity": str(int(quantity)),
+        "orderType": "MARKET",
+        "expireDate": stop_expire_date(),
+        "first": {"orderSide": "SELL", "triggerPrice": valid_us_trigger(trigger)},
+        "confirmHighValueOrder": False,
+    }
+
+
+def place_protective_stop(client: TossLiveClient, cfg: LiveConfig, ticker: str, quantity: int, stop: float, stamp: str) -> str:
+    cid = client_order_id("S", ticker, stamp)
+    result = client.create_conditional(cfg.accountSeq, stop_payload(ticker, quantity, stop, cid))
+    cid2 = str(result.get("conditionalOrderId") or "")
+    if not cid2:
+        raise RuntimeError("protective conditional order returned no id")
+    return cid2
+
+
+def _conditional_qty(row: dict[str, Any]) -> int:
+    try:
+        return int(math.floor(float(row.get("quantity") or 0.0) + 1e-9))
+    except Exception:
+        return 0
+
+
+def _conditional_trigger(row: dict[str, Any]) -> str:
+    first = row.get("first") or {}
+    try:
+        return valid_us_trigger(float(first.get("triggerPrice") or 0.0))
+    except Exception:
+        return ""
+
+
+def _is_protective_row(row: dict[str, Any], ticker: str) -> bool:
+    first = row.get("first") or {}
+    return bool(
+        str(row.get("symbol") or "").upper() == ticker.upper()
+        and str(row.get("type") or "") == "SINGLE"
+        and str(row.get("orderType") or "") == "MARKET"
+        and str(first.get("status") or row.get("status") or "") not in {"COMPLETED", "EXPIRED"}
+    )
+
+
+def _matching_protective_rows(
+    rows: list[dict[str, Any]], ticker: str, quantity: int, stop: float, expire_date: str | None = None,
+) -> list[dict[str, Any]]:
+    trigger = valid_us_trigger(stop)
+    out = []
+    for row in rows:
+        if not _is_protective_row(row, ticker):
+            continue
+        if _conditional_qty(row) != int(quantity):
+            continue
+        if _conditional_trigger(row) != trigger:
+            continue
+        if expire_date is not None and str(row.get("expireDate") or "") != expire_date:
+            continue
+        out.append(row)
+    return out
+
+
+def safe_modify_protective(
+    client: TossLiveClient, cfg: LiveConfig, ticker: str, old_id: str, quantity: int, stop: float,
+) -> tuple[str, str]:
+    """Modify a protective order once and recover safely from an ambiguous response.
+
+    Toss conditional modification invalidates the old id and returns a new id, but the
+    modify endpoint has no clientOrderId.  We therefore never blindly retry the POST.
+    If the response is lost, broker OPEN state is queried and the exact desired
+    SINGLE/MARKET/SELL stop (qty, trigger, expiry) is adopted only when unique.
+    """
+    payload = stop_modify_payload(quantity, stop)
+    expire = str(payload["expireDate"])
+    try:
+        result = client.modify_conditional(cfg.accountSeq, old_id, payload)
+        new_id = str(result.get("conditionalOrderId") or "")
+        if new_id:
+            return new_id, expire
+    except Exception as exc:
+        rows = client.open_conditional_orders(cfg.accountSeq, ticker)
+        matches = _matching_protective_rows(rows, ticker, quantity, stop, expire)
+        if len(matches) == 1:
+            recovered = str(matches[0].get("conditionalOrderId") or "")
+            if recovered:
+                log_event(
+                    "CONDITIONAL_MODIFY_RESPONSE_RECOVERED", ticker=ticker,
+                    oldStopId=old_id, newStopId=recovered, quantity=quantity,
+                    stop=stop, originalError=repr(exc),
+                )
+                return recovered, expire
+        if len(matches) > 1:
+            raise RuntimeError(f"multiple exact protective stops after ambiguous modify for {ticker}") from exc
+        raise
+    # 200 without an id is also ambiguous; broker state is the source of truth.
+    rows = client.open_conditional_orders(cfg.accountSeq, ticker)
+    matches = _matching_protective_rows(rows, ticker, quantity, stop, expire)
+    if len(matches) == 1 and matches[0].get("conditionalOrderId"):
+        return str(matches[0]["conditionalOrderId"]), expire
+    raise RuntimeError(f"protective modify returned no id and no unique replacement for {ticker}")
+
