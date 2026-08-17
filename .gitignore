@@ -7,3 +7,9 @@ cache/
 .DS_Store
 sor_exit_v001_output/
 toss_credentials.local.json
+sor_live.local.json
+sor_live_state.local.json
+sor_live_events.local.jsonl
+SOR_LIVE.KILL
+sor_live.log
+sor_live*.log
