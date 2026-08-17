@@ -80,7 +80,13 @@ def status(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any]) -> No
     print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))
 
 
+def _has_pending_entry_recovery(state: dict[str, Any]) -> bool:
+    return any(bool(x.get("entrySubmissionStarted")) for x in state.get("pending", {}).values())
+
+
 def run_once(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
+    if _has_pending_entry_recovery(state):
+        recover_pending_entries(client, cfg, state, cli_live)
     # Refresh latest completed daily information immediately before an open-cycle.
     scan(client, state)
     mark_trend_exits(state)
@@ -93,6 +99,12 @@ def run_once(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli
 def daemon(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
     require_live(cfg, cli_live)
     log_event("DAEMON_START", strategyVersion=STRATEGY_VERSION, accountSeq=cfg.accountSeq)
+    # Broker-side state is repaired before any signal work. This runs regardless
+    # of market hours so a BUY that crossed a previous process crash is not left
+    # unprotected until the next session.
+    reconcile(client, cfg, state)
+    if _has_pending_entry_recovery(state):
+        recover_pending_entries(client, cfg, state, True)
     scan(client, state)
     # Intentionally blank: force one more scan/trend check in the pre-open/open window.
     # This catches daily data that became available after daemon startup/close scan.
@@ -100,6 +112,8 @@ def daemon(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_l
     last_trend_key = ""
     while True:
         try:
+            if _has_pending_entry_recovery(state):
+                recover_pending_entries(client, cfg, state, True)
             now_ny = pd.Timestamp.now(tz=NY_TZ)
             today = now_ny.strftime("%Y-%m-%d")
             cal = client.us_calendar(today)
