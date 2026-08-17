@@ -1,0 +1,4 @@
+﻿stage,ticker,error
+download,048260.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0; attempt4: rows=0')
+download,034230.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0; attempt4: rows=0')
+download,085370.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0; attempt4: rows=0')

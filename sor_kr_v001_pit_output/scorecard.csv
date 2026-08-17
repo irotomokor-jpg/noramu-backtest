@@ -1,0 +1,4 @@
+﻿universe,positive_robust_periods,robust_periods,full_return_base5bps_pct,full_profit_factor,full_return_cost20bps_pct,full_daily_close_mtm_mdd_pct,verdict,warning
+KOSPI40_PIT,2,3,-0.1991848736535018,1.016101106598297,-2.7255355229494294,13.924576164279712,KR_SOR_UNSUPPORTED,Single PIT snapshot reduces future-selection bias but does not remove delisting/data-availability bias; daily bars cannot resolve intraday TP/SL ordering.
+KOSDAQ40_PIT,2,3,3.1269604881848823,1.1221619883762566,1.9390154646162339,4.234310691783627,KR_SOR_MIXED,Single PIT snapshot reduces future-selection bias but does not remove delisting/data-availability bias; daily bars cannot resolve intraday TP/SL ordering.
+KR80_PIT,2,3,-2.5858555718908383,0.9440345559663741,-5.813900484499945,13.26612477776915,KR_SOR_UNSUPPORTED,Single PIT snapshot reduces future-selection bias but does not remove delisting/data-availability bias; daily bars cannot resolve intraday TP/SL ordering.

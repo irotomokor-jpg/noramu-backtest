@@ -1,0 +1,5 @@
+PASS
+resolved_kospi=40
+resolved_kosdaq=37
+base_opportunities=302
+PASS means research pipeline completed; it is NOT live approval.

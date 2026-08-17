@@ -1,0 +1,54 @@
+{
+  "version": "SOR-KR-v0.01-PIT",
+  "research_only": true,
+  "pit_date": "2023-08-08",
+  "universe": "KOSPI top40 + KOSDAQ top40 by market cap at PIT date",
+  "download_start": "2022-01-01",
+  "end_exclusive": "2026-08-18",
+  "strategy": "SOR_E1_BE",
+  "config": "P8_R8",
+  "frozen_rules": {
+    "trend": "Close > EMA20 > EMA120 > EMA200 and EMA120 rising",
+    "atr_ratio_max": 0.9,
+    "volume_contraction": "prior VOL5/VOL50 < 1.0",
+    "breakout": "Close > prior 20-day high",
+    "breakout_volume": "Volume > VOL50",
+    "entry": "next-day open; reject upside gap > 0.5 ATR20",
+    "stop": "latest causal 2L/2R pivot low; fallback prior20 low",
+    "tp1": "+2R sell 50%",
+    "remainder": "breakeven stop; trend-off next-open exit",
+    "risk_per_trade": 0.01,
+    "max_positions": 8,
+    "max_open_risk": 0.08,
+    "max_gross_exposure": 1.0
+  },
+  "cost_bps_side": [
+    5.0,
+    10.0,
+    20.0
+  ],
+  "periods": [
+    [
+      "P1_2023_08_08_2024_08_07",
+      "2023-08-08",
+      "2024-08-07"
+    ],
+    [
+      "P2_2024_08_08_2025_08_07",
+      "2024-08-08",
+      "2025-08-07"
+    ],
+    [
+      "P3_2025_08_08_2026_08_17",
+      "2025-08-08",
+      "2026-08-17"
+    ],
+    [
+      "FULL_2023_08_08_2026_08_17",
+      "2023-08-08",
+      "2026-08-17"
+    ]
+  ],
+  "data_note": "Yahoo unadjusted daily OHLC to mirror original US SOR loader; corporate actions can create artifacts and must be reviewed if anomalies appear.",
+  "no_parameter_tuning": true
+}
