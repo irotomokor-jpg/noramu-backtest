@@ -1,3 +1,58 @@
+def _submit_market_exit_with_protection(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any],
+                                        ticker: str, quantity: int, kind: str) -> tuple[str, str, int]:
+    """Submit a discretionary SELL while keeping the broker stop alive.
+
+    Toss exposes sellableQuantity specifically for pre-order validation. If the
+    broker reports fewer sellable shares than the desired exit, do NOT cancel the
+    protective stop automatically; retain protection, KILL new entries, and defer.
+    """
+    try:
+        sellable = int(math.floor(client.sellable_quantity(cfg.accountSeq, ticker) + 1e-9))
+    except Exception as exc:
+        KILL_FILE.touch(exist_ok=True)
+        log_event("CRITICAL_EXIT_SELLABLE_READ_FAILED", ticker=ticker, kind=kind,
+                  quantity=quantity, error=repr(exc), killFile=str(KILL_FILE))
+        return "", "SELLABLE_READ_FAILED", quantity
+    if sellable < quantity:
+        KILL_FILE.touch(exist_ok=True)
+        log_event("EXIT_DEFER_INSUFFICIENT_SELLABLE", ticker=ticker, kind=kind,
+                  desired=quantity, sellable=sellable, killFile=str(KILL_FILE))
+        return "", "INSUFFICIENT_SELLABLE", quantity
+
+    cid = client_order_id(kind, ticker, pd.Timestamp.now(tz=NY_TZ).strftime("%Y%m%d%H%M%S"))
+    order = create_market_order(client, cfg, ticker, "SELL", quantity, cid)
+    oid = str(order.get("orderId") or "")
+    if not oid:
+        raise RuntimeError(f"{kind} SELL {ticker} returned no orderId")
+    detail = wait_order_fill(client, cfg, oid)
+    status = str(detail.get("status") or "")
+    if status not in {"FILLED", "REJECTED", "CANCELED"}:
+        try:
+            client.cancel_order(cfg.accountSeq, oid)
+            time.sleep(0.5)
+        except TossLiveError as exc:
+            if exc.code not in {"already-filled", "already-canceled"}:
+                log_event("EXIT_ORDER_CANCEL_ERROR", ticker=ticker, kind=kind, orderId=oid, code=exc.code)
+    h2, _ = holdings_map(client, cfg)
+    residual = int(math.floor(broker_qty(h2, ticker) + 1e-9))
+    return oid, status, residual
+
+
+def _finish_full_exit(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], ticker: str) -> None:
+    p = state["positions"].get(ticker)
+    if not p:
+        return
+    stop_id = str(p.get("protectiveConditionalId") or "")
+    if stop_id:
+        try:
+            client.cancel_conditional(cfg.accountSeq, stop_id)
+        except TossLiveError as exc:
+            if exc.code != "conditional-order-not-found":
+                log_event("POST_EXIT_STOP_CANCEL_ERROR", ticker=ticker, code=exc.code)
+    state["positions"].pop(ticker, None)
+    save_state(state)
+
+
 def execute_trend_exits(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
     now_ny = pd.Timestamp.now(tz=NY_TZ)
     today = now_ny.strftime("%Y-%m-%d")
@@ -19,44 +74,31 @@ def execute_trend_exits(client: TossLiveClient, cfg: LiveConfig, state: dict[str
         if client.open_orders(cfg.accountSeq, ticker):
             log_event("TREND_EXIT_DEFER_OPEN_ORDER", ticker=ticker)
             continue
-        p = state["positions"][ticker]
         actual = int(math.floor(broker_qty(hmap, ticker) + 1e-9))
         if actual <= 0:
             continue
-        # Keep the protective stop LIVE until the discretionary market sell is resolved.
-        # If the daemon dies after submit, the remaining position is still protected.
-        order = create_market_order(client, cfg, ticker, "SELL", actual, client_order_id("T", ticker, pd.Timestamp.now(tz=NY_TZ).strftime("%Y%m%d%H%M%S")))
-        oid = str(order.get("orderId") or "")
-        detail = wait_order_fill(client, cfg, oid) if oid else {}
-        status = str(detail.get("status") or "")
-        if status not in {"FILLED", "REJECTED", "CANCELED"} and oid:
-            try:
-                client.cancel_order(cfg.accountSeq, oid)
-                time.sleep(0.5)
-            except TossLiveError as exc:
-                if exc.code != "already-filled":
-                    log_event("TREND_EXIT_ORDER_CANCEL_ERROR", ticker=ticker, code=exc.code)
-        h2, _ = holdings_map(client, cfg)
-        residual = int(math.floor(broker_qty(h2, ticker) + 1e-9))
-        log_event("TREND_EXIT", ticker=ticker, orderId=oid, status=status, requested=actual, residual=residual)
+        try:
+            oid, status, residual = _submit_market_exit_with_protection(
+                client, cfg, state, ticker, actual, "T"
+            )
+        except Exception as exc:
+            KILL_FILE.touch(exist_ok=True)
+            log_event("TREND_EXIT_SUBMIT_ERROR", ticker=ticker, requested=actual,
+                      error=repr(exc), killFile=str(KILL_FILE))
+            continue
+        log_event("TREND_EXIT", ticker=ticker, orderId=oid, status=status,
+                  requested=actual, residual=residual)
         p = state["positions"].get(ticker)
         if p is None:
             continue
         if residual <= 0:
-            stop_id = str(p.get("protectiveConditionalId") or "")
-            if stop_id:
-                try:
-                    client.cancel_conditional(cfg.accountSeq, stop_id)
-                except TossLiveError as exc:
-                    if exc.code != "conditional-order-not-found":
-                        log_event("POST_EXIT_STOP_CANCEL_ERROR", ticker=ticker, code=exc.code)
-            state["positions"].pop(ticker, None)
-            save_state(state)
+            _finish_full_exit(client, cfg, state, ticker)
             continue
-        # Reconcile resizes the still-live protective stop to the actual residual.
+        # Reconcile resizes/validates the still-live protective stop to the residual.
         p["quantity"] = residual
         save_state(state)
         reconcile(client, cfg, state)
+
 
 def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
     if not state.get("positions"):
@@ -86,10 +128,7 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
         desired_tp_total = max(1, int(math.floor(initial * PARTIAL)))
         already_sold = max(0, initial - actual)
         to_sell = max(0, desired_tp_total - already_sold)
-        if to_sell <= 0:
-            remain_after = actual
-        else:
-            remain_after = actual - to_sell
+        remain_after = actual - to_sell if to_sell > 0 else actual
         if actual < 1 or remain_after < 1:
             continue
         stop_id = str(p.get("protectiveConditionalId") or "")
@@ -97,6 +136,7 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
             KILL_FILE.touch(exist_ok=True)
             log_event("TP1_BLOCK_NO_PROTECTIVE_STOP", ticker=ticker, quantity=actual)
             continue
+
         # Reduce stop quantity only to the expected post-TP remainder, retaining initial stop.
         try:
             new_stop_id, new_expire = safe_modify_protective(
@@ -109,15 +149,38 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
         except Exception as exc:
             log_event("TP1_BLOCK_STOP_MODIFY_FAILED", ticker=ticker, error=repr(exc))
             continue
+
         if to_sell > 0:
+            # The reduced protective stop should leave exactly the TP tranche sellable.
+            try:
+                sellable = int(math.floor(client.sellable_quantity(cfg.accountSeq, ticker) + 1e-9))
+            except Exception as exc:
+                sellable = -1
+                log_event("TP1_SELLABLE_READ_FAILED", ticker=ticker, error=repr(exc))
+            if sellable < to_sell:
+                try:
+                    restored_id, restored_expire = safe_modify_protective(
+                        client, cfg, ticker, str(p["protectiveConditionalId"]),
+                        actual, float(p["initialStop"])
+                    )
+                    p["protectiveConditionalId"] = restored_id
+                    p["protectiveQuantity"] = actual
+                    p["protectiveExpireDate"] = restored_expire
+                    save_state(state)
+                    KILL_FILE.touch(exist_ok=True)
+                    log_event("TP1_DEFER_INSUFFICIENT_SELLABLE_REPROTECTED", ticker=ticker,
+                              desiredSell=to_sell, sellable=sellable, killFile=str(KILL_FILE))
+                except Exception as rex:
+                    KILL_FILE.touch(exist_ok=True)
+                    log_event("CRITICAL_TP1_SELLABLE_RESTORE_FAILED", ticker=ticker,
+                              sellable=sellable, restoreError=repr(rex), killFile=str(KILL_FILE))
+                continue
             try:
                 order = create_market_order(
                     client, cfg, ticker, "SELL", to_sell,
                     client_order_id("P", ticker, pd.Timestamp.now(tz=NY_TZ).strftime("%Y%m%d%H%M%S")),
                 )
             except Exception as exc:
-                # Stop was intentionally reduced before the TP sell.  If the sell
-                # cannot even be submitted, restore protection to ALL actual shares now.
                 try:
                     restored_id, restored_expire = safe_modify_protective(
                         client, cfg, ticker, str(p["protectiveConditionalId"]),
@@ -143,12 +206,11 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
                 try:
                     client.cancel_order(cfg.accountSeq, oid)
                 except TossLiveError as exc:
-                    if exc.code != "already-filled":
+                    if exc.code not in {"already-filled", "already-canceled"}:
                         log_event("TP1_ORDER_CANCEL_ERROR", ticker=ticker, code=exc.code)
             h2, _ = holdings_map(client, cfg)
             actual_after = int(math.floor(broker_qty(h2, ticker) + 1e-9))
             if actual_after > remain_after:
-                # TP sell was partial/failed. Restore initial-stop protection to ALL actual shares.
                 try:
                     restored_id, restored_expire = safe_modify_protective(
                         client, cfg, ticker, str(p["protectiveConditionalId"]),
@@ -159,15 +221,18 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
                     p["protectiveExpireDate"] = restored_expire
                     p["quantity"] = actual_after
                     save_state(state)
-                    log_event("TP1_PARTIAL_REPROTECTED", ticker=ticker, desiredSell=to_sell, actualRemaining=actual_after, status=status)
+                    log_event("TP1_PARTIAL_REPROTECTED", ticker=ticker, desiredSell=to_sell,
+                              actualRemaining=actual_after, status=status)
                 except Exception as exc:
                     KILL_FILE.touch(exist_ok=True)
-                    log_event("CRITICAL_TP1_PARTIAL_UNDERPROTECTED", ticker=ticker, actualRemaining=actual_after, error=repr(exc))
+                    log_event("CRITICAL_TP1_PARTIAL_UNDERPROTECTED", ticker=ticker,
+                              actualRemaining=actual_after, error=repr(exc))
                 continue
             actual = actual_after
             if actual <= 0:
-                state["positions"].pop(ticker, None); save_state(state)
+                _finish_full_exit(client, cfg, state, ticker)
                 continue
+
         # Desired 50% cumulative sale is complete; move all remaining protection to breakeven.
         try:
             be_id, be_expire = safe_modify_protective(
@@ -181,7 +246,33 @@ def manage_tp1(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], c
             p["activeStop"] = float(p["entryPrice"])
             p["tp1Hit"] = True
             save_state(state)
-            log_event("TP1_FILLED_BE_ARMED", ticker=ticker, cumulativeSold=initial-actual, remaining=actual, entry=p["entryPrice"], newStopId=p["protectiveConditionalId"])
+            log_event("TP1_FILLED_BE_ARMED", ticker=ticker, cumulativeSold=initial-actual,
+                      remaining=actual, entry=p["entryPrice"], newStopId=p["protectiveConditionalId"])
+        except TossLiveError as exc:
+            if exc.code == "condition-already-met":
+                # The market crossed BE before the stop modification reached Toss.
+                # Attempt immediate residual liquidation without canceling the initial
+                # protective stop. If broker sellability is insufficient, retain the
+                # initial stop and KILL new entries rather than leave the position bare.
+                try:
+                    oid, status, residual = _submit_market_exit_with_protection(
+                        client, cfg, state, ticker, actual, "BE"
+                    )
+                    log_event("BE_ALREADY_MET_MARKET_EXIT", ticker=ticker, orderId=oid,
+                              status=status, requested=actual, residual=residual)
+                    if residual <= 0:
+                        _finish_full_exit(client, cfg, state, ticker)
+                    else:
+                        p["quantity"] = residual
+                        save_state(state)
+                        reconcile(client, cfg, state)
+                except Exception as eexc:
+                    KILL_FILE.touch(exist_ok=True)
+                    log_event("CRITICAL_BE_ALREADY_MET_EXIT_FAILED", ticker=ticker,
+                              error=repr(eexc), killFile=str(KILL_FILE))
+            else:
+                log_event("BE_STOP_MODIFY_FAILED", ticker=ticker, code=exc.code,
+                          error=repr(exc), remaining=actual)
         except Exception as exc:
             log_event("BE_STOP_MODIFY_FAILED", ticker=ticker, error=repr(exc), remaining=actual)
             # Initial protective stop is still active; keep tp1Hit false so BE arm is retried.
