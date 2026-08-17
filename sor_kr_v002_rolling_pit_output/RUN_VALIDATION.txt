@@ -1,0 +1,4 @@
+PASS
+years=2019-2026
+unique_tickers=206
+PASS means the rolling-PIT research pipeline completed; no live approval.
