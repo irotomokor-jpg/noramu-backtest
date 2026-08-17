@@ -1,5 +1,6 @@
 name: SOR KR v0.01 PIT Backtest
 
+# Triggered after the workflow file already exists on the research branch.
 on:
   workflow_dispatch:
   push:
