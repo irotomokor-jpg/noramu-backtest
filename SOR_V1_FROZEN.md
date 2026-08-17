@@ -89,15 +89,17 @@ Only an API account reported as `BROKERAGE` is accepted by setup.
 
 The live executor uses a 3-minute entry window only as failure tolerance; it is intended to be running before the US regular-session open and submit immediately after open.
 
-### Broker protection
+### Broker protection / crash recovery
 
+- A durable entry-submission marker is written before the BUY API call. If the process dies around submission/fill, restart recovery cancels a still-open bot BUY, reads the actual holding, adopts the fill, and recreates protection.
 - Every actual filled entry is written to local state before protection is created.
 - Every bot-managed residual is protected with a Toss broker-side `SINGLE + MARKET + SELL` conditional stop.
 - Partial entry fills are managed and protected at actual filled quantity.
+- Pre-existing holdings, normal orders, or conditional orders on a candidate ticker block a new SOR entry, avoiding ownership ambiguity.
 - Conditional-order modifications adopt the new `conditionalOrderId` returned by Toss.
-- Ambiguous modify responses are not blindly retried; the executor queries broker OPEN conditionals and adopts only one exact matching replacement.
-- The executor reconciles holdings, normal open orders, and open conditional orders after restarts.
-- Protective conditional expiry is refreshed before it approaches expiration.
+- Ambiguous modify responses are not blindly retried; recovery accepts only one exact `WATCHING + SINGLE + MARKET + STOP` replacement.
+- The executor reconciles holdings, normal open orders, and open conditional orders after restarts. Paused/conflicting protection creates `SOR_LIVE.KILL`.
+- Protective conditions use a 90-calendar-day expiry and are refreshed 14 days before expiry. The OpenAPI requires `expireDate` but does not publish a maximum horizon.
 - If a residual position cannot be verified as protected, `SOR_LIVE.KILL` is created to block new entries.
 
 ### TP1 / trend exits
@@ -105,14 +107,18 @@ The live executor uses a 3-minute entry window only as failure tolerance; it is 
 - TP1 and trend exits are daemon-driven.
 - Broker-side protective stops remain the fail-safe if the process dies.
 - TP1 sells the cumulative target of 50% of original filled whole shares, then moves all remaining protection to breakeven.
+- Before discretionary sells, the executor checks Toss `sellableQuantity`. If the broker reports insufficient sellable quantity, it retains broker protection and blocks new entries rather than automatically removing the stop.
+- If the market reaches breakeven before the BE stop modification completes, the executor attempts an immediate residual market exit while leaving the existing initial stop in place as fail-safe.
 - Trend state is refreshed again before the next regular-session open in case the post-close daily bar was delayed.
 - Trend-off exits are sent at the next regular-session open after new-entry capacity decisions, matching the conservative V010/V014 same-open convention.
 
 ## Operational invariants
 
 - Do not manually buy or sell a ticker while the bot is managing that ticker.
+- Do not manually place normal or conditional orders on a ticker that the bot is managing or is about to enter.
 - Do not delete `sor_live_state.local.json` while any bot-managed position is open.
 - Do not run another process using the same Toss client credentials in a way that repeatedly reissues OAuth tokens while the live daemon is active.
 - `SOR_LIVE.KILL` blocks new entries; broker protection and managed exits remain active.
 - Orders requiring Toss's high-value confirmation (KRW 100m equivalent or above) are intentionally not auto-confirmed by V1.0.
+- The current OpenAPI schema does not document which US session(s) a conditional trigger watches. Broker-side protection is retained for fail-safe safety even if this can differ from the RTH-only historical audit.
 - No forward/paper validation gate is part of this deployment decision; direct live deployment was selected after the historical/minute validation above.
