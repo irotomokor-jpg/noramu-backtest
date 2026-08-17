@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 import sor_v013_2024_1m_audit as v13
+from sor_us_rth_calendar import RTH_OPEN_MINUTE, is_early_close, session_end_minute
 from toss_sqlite_cache_v001 import db_connect
 
 MODE = "SOR_V0131_REPLAY_COVERAGE_FIX_NO_ORDERS"
@@ -17,8 +18,7 @@ DB_PATH = v13.DB_PATH
 NY_TZ = v13.NY_TZ
 
 # Toss/vendor minute conventions can omit a handful of otherwise uneventful
-# minutes. Keep the audit strict, but do not require an almost-perfect 385/390
-# count if session endpoints are present.
+# minutes. Keep the audit strict enough to detect broken sessions.
 MIN_REGULAR_BARS = 375
 MIN_EARLY_BARS = 195
 
@@ -30,10 +30,11 @@ def robust_load_1m(
     start_date: str,
     end_date: str,
 ) -> pd.DataFrame:
-    """Load by symbol/basis first, then filter on New-York local dates.
+    """Load by symbol/basis, convert to New-York time, then keep true core RTH.
 
-    This avoids depending on the textual timezone/date representation stored by
-    Toss in SQLite (UTC, offset-aware ISO, etc.).
+    Early-close dates are capped at 13:00 ET. This is important because Toss can
+    return sparse post-close/extended-hours prints between 13:00 and 16:00 on
+    those dates; those bars must not enter the RTH replay baseline.
     """
     q = pd.read_sql_query(
         "SELECT timestamp,open,high,low,close,volume FROM candles "
@@ -52,15 +53,19 @@ def robust_load_1m(
     q.columns = [c.capitalize() for c in q.columns]
     q = q[~q.index.duplicated(keep="last")].sort_index()
 
-    local_dates = pd.Index(q.index.date)
     s = pd.Timestamp(start_date).date()
     e = pd.Timestamp(end_date).date()
-    mask = np.array([(d >= s and d <= e) for d in local_dates], dtype=bool)
-    q = q.loc[mask]
+    local_dates = np.array(q.index.date)
+    date_mask = np.array([(d >= s and d <= e) for d in local_dates], dtype=bool)
+    q = q.loc[date_mask]
+    if q.empty:
+        return q
 
-    mins = q.index.hour * 60 + q.index.minute
-    q = q[(mins >= 570) & (mins < 960)]
-    return q
+    mins = np.asarray(q.index.hour * 60 + q.index.minute)
+    day_strings = q.index.strftime("%Y-%m-%d")
+    end_mins = np.array([session_end_minute(ds) for ds in day_strings], dtype=int)
+    core_mask = (mins >= RTH_OPEN_MINUTE) & (mins < end_mins)
+    return q.loc[core_mask]
 
 
 def source_coverage(df: pd.DataFrame, expected_dates: list[str]) -> tuple[list[dict], bool, int]:
@@ -73,17 +78,19 @@ def source_coverage(df: pd.DataFrame, expected_dates: list[str]) -> tuple[list[d
         d = pd.Timestamp(ds).date()
         g = df[date_arr == d] if len(df) else df
         n = len(g)
+        early_day = is_early_close(ds)
         if n:
             first = g.index[0]
             last = g.index[-1]
             fm = first.hour * 60 + first.minute
             lm = last.hour * 60 + last.minute
-            regular = n >= MIN_REGULAR_BARS and fm <= 575 and lm >= 955
-            early = n >= MIN_EARLY_BARS and fm <= 575 and 770 <= lm <= 790
-            ok = bool(regular or early)
+            if early_day:
+                ok = n >= MIN_EARLY_BARS and fm <= 575 and lm >= 775
+            else:
+                ok = n >= MIN_REGULAR_BARS and fm <= 575 and lm >= 955
         else:
             first = last = pd.NaT
-            regular = early = ok = False
+            ok = False
         if ok:
             good_days += 1
         all_ok = all_ok and ok
@@ -92,8 +99,8 @@ def source_coverage(df: pd.DataFrame, expected_dates: list[str]) -> tuple[list[d
             "rth_bars": int(n),
             "first": str(first) if n else "",
             "last": str(last) if n else "",
-            "coverage_ok": ok,
-            "early_close": bool(early),
+            "coverage_ok": bool(ok),
+            "early_close": bool(early_day),
         })
     return rows, all_ok, good_days
 
@@ -161,9 +168,9 @@ def diagnose(outdir: Path, db_path: Path) -> dict:
             expected = [x for x in str(trade["expected_dates"]).split("|") if x]
             adj = robust_load_1m(con, ticker, True, start_date, end_date)
             raw = robust_load_1m(con, ticker, False, start_date, end_date)
-            ar, aok, agood = source_coverage(adj, expected)
-            rr, rok, rgood = source_coverage(raw, expected)
-            chosen, cr, bok = best_source_and_coverage(con, ticker, start_date, end_date, expected)
+            _, aok, agood = source_coverage(adj, expected)
+            _, rok, rgood = source_coverage(raw, expected)
+            _, cr, bok = best_source_and_coverage(con, ticker, start_date, end_date, expected)
             source = cr[0]["source"] if cr else "none"
             source_counts[source] = source_counts.get(source, 0) + 1
             trade_ok_adj += int(aok)
@@ -194,6 +201,7 @@ def diagnose(outdir: Path, db_path: Path) -> dict:
         "adjusted_full_coverage_trades": int(trade_ok_adj),
         "raw_full_coverage_trades": int(trade_ok_raw),
         "best_source_full_coverage_trades": int(trade_ok_best),
+        "best_source_coverage_pct": 100.0 * trade_ok_best / len(plan) if len(plan) else 0.0,
         "source_counts": source_counts,
         "diagnosis": (
             "NO_1M_ROWS_RECOLLECT" if int(db_rows["rows"].sum()) == 0
@@ -209,8 +217,8 @@ def diagnose(outdir: Path, db_path: Path) -> dict:
 
 
 def replay_fixed(outdir: Path, db_path: Path) -> None:
-    # The original replay already normalizes the selected minute source to the
-    # frozen daily entry-price basis. Replace only its source/coverage loader.
+    # The original replay normalizes the selected minute source to the frozen
+    # daily entry-price basis. Replace only its source/coverage loader.
     original = v13.paired_and_coverage
     v13.paired_and_coverage = best_source_and_coverage
     try:
