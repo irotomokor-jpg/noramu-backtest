@@ -81,21 +81,21 @@ def status(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any]) -> No
 
 
 def run_once(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
-    # Startup/recovery scan creates any pending signal from the last completed daily bar.
+    # Refresh latest completed daily information immediately before an open-cycle.
     scan(client, state)
-    # Conservative same-open order: new entries compete before trend-off exits release capital.
+    mark_trend_exits(state)
+    # Conservative same-open order: new entries still compete BEFORE marked exits release capital.
     process_entries(client, cfg, state, cli_live)
     execute_trend_exits(client, cfg, state, cli_live)
     manage_tp1(client, cfg, state, cli_live)
-    mark_trend_exits(state)
 
 
 def daemon(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
     require_live(cfg, cli_live)
     log_event("DAEMON_START", strategyVersion=STRATEGY_VERSION, accountSeq=cfg.accountSeq)
     scan(client, state)
-    # Intentionally blank: force one more scan in the pre-open/open window.
-    # This catches daily data that became available after daemon startup.
+    # Intentionally blank: force one more scan/trend check in the pre-open/open window.
+    # This catches daily data that became available after daemon startup/close scan.
     last_scan_key = ""
     last_trend_key = ""
     while True:
@@ -110,7 +110,11 @@ def daemon(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_l
                 if start - pd.Timedelta(minutes=30) <= now_ny <= start + pd.Timedelta(minutes=cfg.entryWindowMinutes):
                     key = f"entry-{today}"
                     if key != last_scan_key:
-                        scan(client, state); last_scan_key = key
+                        scan(client, state)
+                        mark_trend_exits(state)
+                        last_scan_key = key
+                    # Marking a trend-off does not release capacity. Entries are still
+                    # evaluated first, then next-open trend exits are submitted.
                     process_entries(client, cfg, state, True)
                     execute_trend_exits(client, cfg, state, True)
                 if start <= now_ny <= end:
