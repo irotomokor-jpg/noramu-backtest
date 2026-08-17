@@ -344,12 +344,21 @@ def _conditional_trigger(row: dict[str, Any]) -> str:
 
 
 def _is_protective_row(row: dict[str, Any], ticker: str) -> bool:
+    """Return only a live watching SINGLE/MARKET/STOP candidate.
+
+    Conditional-history responses do not expose orderSide or clientOrderId, so
+    recovery deliberately accepts only the narrow broker shape created by this
+    executor. Entry logic separately forbids pre-existing conditionals on a
+    ticker before the bot takes ownership.
+    """
     first = row.get("first") or {}
     return bool(
         str(row.get("symbol") or "").upper() == ticker.upper()
         and str(row.get("type") or "") == "SINGLE"
         and str(row.get("orderType") or "") == "MARKET"
-        and str(first.get("status") or row.get("status") or "") not in {"COMPLETED", "EXPIRED"}
+        and str(first.get("type") or "") == "STOP"
+        and str(row.get("status") or "") == "WATCHING"
+        and str(first.get("status") or "") == "WATCHING"
     )
 
 
@@ -377,9 +386,9 @@ def safe_modify_protective(
     """Modify a protective order once and recover safely from an ambiguous response.
 
     Toss conditional modification invalidates the old id and returns a new id, but the
-    modify endpoint has no clientOrderId.  We therefore never blindly retry the POST.
+    modify endpoint has no clientOrderId. We therefore never blindly retry the POST.
     If the response is lost, broker OPEN state is queried and the exact desired
-    SINGLE/MARKET/SELL stop (qty, trigger, expiry) is adopted only when unique.
+    watching SINGLE/MARKET/STOP (qty, trigger, expiry) is adopted only when unique.
     """
     payload = stop_modify_payload(quantity, stop)
     expire = str(payload["expireDate"])
