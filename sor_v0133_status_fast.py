@@ -3,15 +3,36 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sqlite3
 
 import numpy as np
 import pandas as pd
 
 import sor_v0133_rth_day_collector as v133
+from sor_us_rth_calendar import RTH_OPEN_MINUTE, is_early_close, session_end_minute
 from toss_sqlite_cache_v001 import db_connect
 
 MODE = "SOR_V0133_FAST_STATUS_NO_ORDERS"
+
+
+def _coverage_for_times(day: str, times: pd.DatetimeIndex) -> tuple[int, bool, str, str]:
+    if not len(times):
+        return 0, False, "", ""
+    mins = np.asarray(times.hour * 60 + times.minute)
+    end_min = session_end_minute(day)
+    keep = (mins >= RTH_OPEN_MINUTE) & (mins < end_min)
+    times = times[keep]
+    if not len(times):
+        return 0, False, "", ""
+    n = len(times)
+    first = times[0]
+    last = times[-1]
+    fm = first.hour * 60 + first.minute
+    lm = last.hour * 60 + last.minute
+    if is_early_close(day):
+        ok = n >= v133.MIN_EARLY_BARS and fm <= 575 and lm >= 775
+    else:
+        ok = n >= v133.MIN_REGULAR_BARS and fm <= 575 and lm >= 955
+    return int(n), bool(ok), str(first), str(last)
 
 
 def fast_status(outdir: Path, db_path: Path) -> dict:
@@ -35,9 +56,6 @@ def fast_status(outdir: Path, db_path: Path) -> dict:
             if not q.empty:
                 idx = pd.to_datetime(q["timestamp"], utc=True, errors="coerce")
                 idx = pd.DatetimeIndex(idx[idx.notna()]).tz_convert(v133.NY_TZ)
-                mins = idx.hour * 60 + idx.minute
-                idx = idx[(mins >= 570) & (mins < 960)]
-
                 if len(idx):
                     tmp = pd.DataFrame({"ts": idx})
                     tmp["date"] = tmp["ts"].dt.strftime("%Y-%m-%d")
@@ -46,18 +64,13 @@ def fast_status(outdir: Path, db_path: Path) -> dict:
                         if key not in needed:
                             continue
                         times = pd.DatetimeIndex(g["ts"])
-                        n = len(times)
-                        first = times[0]
-                        last = times[-1]
-                        fm = first.hour * 60 + first.minute
-                        lm = last.hour * 60 + last.minute
-                        regular = n >= v133.MIN_REGULAR_BARS and fm <= 575 and lm >= 955
-                        early = n >= v133.MIN_EARLY_BARS and fm <= 575 and 770 <= lm <= 790
+                        n, ok, first, last = _coverage_for_times(str(day), times)
                         stats[key] = {
-                            "rows": int(n),
-                            "ok": bool(regular or early),
-                            "first": str(first),
-                            "last": str(last),
+                            "rows": n,
+                            "ok": ok,
+                            "first": first,
+                            "last": last,
+                            "early_close": bool(is_early_close(day)),
                         }
             if i % 10 == 0 or i == total_tickers:
                 print(f"FAST_STATUS {i}/{total_tickers} tickers", flush=True)
@@ -66,7 +79,10 @@ def fast_status(outdir: Path, db_path: Path) -> dict:
 
     rows = []
     for ticker, day in required[["ticker", "date"]].itertuples(index=False, name=None):
-        s = stats.get((ticker, day), {"rows": 0, "ok": False, "first": "", "last": ""})
+        s = stats.get((ticker, day), {
+            "rows": 0, "ok": False, "first": "", "last": "",
+            "early_close": bool(is_early_close(day)),
+        })
         rows.append({"ticker": ticker, "date": day, **s})
 
     z = pd.DataFrame(rows)
@@ -84,6 +100,7 @@ def fast_status(outdir: Path, db_path: Path) -> dict:
         "max_rows": int(z["rows"].max()) if len(z) else 0,
         "zero_row_days": int((z["rows"] == 0).sum()) if len(z) else 0,
         "partial_nonzero_days": int(((z["rows"] > 0) & (~z["ok"])).sum()) if len(z) else 0,
+        "early_close_required_days": int(z["early_close"].sum()) if len(z) else 0,
         "incomplete_file": str(outdir / "v0133_incomplete_days.csv"),
     }
     (outdir / "v0133_fast_status.json").write_text(
