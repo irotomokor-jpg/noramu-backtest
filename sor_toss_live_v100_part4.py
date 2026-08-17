@@ -31,20 +31,65 @@ def _recover_or_create_protection(client: TossLiveClient, cfg: LiveConfig, state
             return cid
     if len(exact) > 1:
         raise RuntimeError(f"multiple exact protective stops while recovering {ticker}")
-    other = [r for r in rows if _is_protective_row(r, ticker)]
+    other = [r for r in rows if str(r.get("symbol") or "").upper() == ticker.upper()]
     if other:
-        raise RuntimeError(f"unknown SINGLE protective stop conflicts while recovering {ticker}")
+        raise RuntimeError(f"unknown conditional order conflicts while recovering {ticker}")
     return place_protective_stop(client, cfg, ticker, quantity, stop, stamp)
+
+
+def _emergency_flatten_recovery(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any],
+                                sid: str, sig: dict[str, Any], ticker: str,
+                                quantity: int, reason: str) -> None:
+    """Fail closed when a recovered fill cannot be safely reconstructed."""
+    KILL_FILE.touch(exist_ok=True)
+    log_event("ENTRY_RECOVERY_EMERGENCY_FLATTEN", signalId=sid, ticker=ticker,
+              quantity=quantity, reason=reason, killFile=str(KILL_FILE))
+    try:
+        order = create_market_order(
+            client, cfg, ticker, "SELL", quantity,
+            client_order_id("ER", ticker, pd.Timestamp.now(tz=NY_TZ).strftime("%m%d%H%M%S")),
+        )
+        oid = str(order.get("orderId") or "")
+        if oid:
+            wait_order_fill(client, cfg, oid)
+        time.sleep(0.5)
+    except Exception as exc:
+        log_event("ENTRY_RECOVERY_EMERGENCY_EXIT_ERROR", ticker=ticker, error=repr(exc))
+    h2, _ = holdings_map(client, cfg)
+    residual = int(math.floor(broker_qty(h2, ticker) + 1e-9))
+    if residual <= 0:
+        state["positions"].pop(ticker, None)
+        _complete_pending_signal(state, sid)
+        return
+    stop = float(sig["initialStop"])
+    ref = float(sig.get("entryReferencePrice") or 0.0)
+    safe_ref = ref if ref > stop else stop * 1.0001
+    state["positions"][ticker] = _position_from_fill(
+        sig, ticker, sid, str(sig.get("entryDate") or pd.Timestamp.now(tz=NY_TZ).date()),
+        str(sig.get("entryOrderId") or "RECOVERED"), residual, safe_ref,
+    )
+    try:
+        sid2 = _recover_or_create_protection(
+            client, cfg, state, ticker, residual, stop,
+            "rr" + pd.Timestamp.now(tz=NY_TZ).strftime("%m%d%H%M%S"),
+        )
+        state["positions"][ticker]["protectiveConditionalId"] = sid2
+        state["positions"][ticker]["protectiveQuantity"] = residual
+        state["positions"][ticker]["protectiveExpireDate"] = stop_expire_date()
+        _complete_pending_signal(state, sid)
+        log_event("ENTRY_RECOVERY_RESIDUAL_PROTECTED", ticker=ticker,
+                  quantity=residual, protectiveConditionalId=sid2)
+    except Exception as exc:
+        save_state(state)
+        log_event("CRITICAL_ENTRY_RECOVERY_RESIDUAL_UNPROTECTED", ticker=ticker,
+                  quantity=residual, error=repr(exc), killFile=str(KILL_FILE))
 
 
 def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
     """Crash recovery for the narrow window around BUY submission/fill.
 
-    A submission marker is fsynced to the local JSON state *before* POST /orders.
-    On restart, any still-open BUY is canceled first, then the actual holding is
-    adopted and protected. Because normal entry blocks pre-existing holdings,
-    preEntryQuantity is expected to be zero; a non-zero baseline is treated as
-    ambiguous and blocks further entries.
+    A submission marker is persisted before POST /orders. On restart, any still-open
+    bot BUY is canceled first, then the actual holding is adopted and protected.
     """
     marked = [
         (sid, x) for sid, x in list(state.get("pending", {}).items())
@@ -60,8 +105,6 @@ def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict
             continue
         ticker = str(sig["ticker"]).upper()
         if ticker in state.get("positions", {}):
-            # Position state was persisted before the crash. reconcile() above
-            # recovers/recreates its protection; only clear the submission marker.
             _complete_pending_signal(state, sid)
             log_event("ENTRY_RECOVERY_STATE_ALREADY_PRESENT", signalId=sid, ticker=ticker)
             continue
@@ -85,6 +128,13 @@ def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict
             continue
 
         if expected_oid:
+            unexpected = [o for o in open_buys if str(o.get("orderId") or "") != expected_oid]
+            if unexpected:
+                KILL_FILE.touch(exist_ok=True)
+                log_event("CRITICAL_ENTRY_RECOVERY_UNEXPECTED_BUY", signalId=sid, ticker=ticker,
+                          expectedOrderId=expected_oid, unexpectedCount=len(unexpected),
+                          killFile=str(KILL_FILE))
+                continue
             candidates = [o for o in open_buys if str(o.get("orderId") or "") == expected_oid]
         else:
             candidates = open_buys
@@ -118,10 +168,12 @@ def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict
             avg = float((h or {}).get("averagePurchasePrice") or 0.0)
         except Exception:
             avg = 0.0
-        if avg <= 0:
-            KILL_FILE.touch(exist_ok=True)
-            log_event("CRITICAL_ENTRY_RECOVERY_NO_AVG_PRICE", signalId=sid, ticker=ticker,
-                      quantity=managed_qty, killFile=str(KILL_FILE))
+        stop = float(sig["initialStop"])
+        if avg <= stop:
+            _emergency_flatten_recovery(
+                client, cfg, state, sid, sig, ticker, managed_qty,
+                "missing_or_invalid_average_purchase_price" if avg <= 0 else "recovered_entry_at_or_below_stop",
+            )
             continue
 
         entry_date = str(sig.get("entryDate") or pd.Timestamp.now(tz=NY_TZ).strftime("%Y-%m-%d"))
@@ -129,7 +181,6 @@ def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict
             sig, ticker, sid, entry_date, str(sig.get("entryOrderId") or "RECOVERED"), managed_qty, avg
         )
         save_state(state)
-        stop = float(sig["initialStop"])
         try:
             stamp = "rec" + pd.Timestamp.now(tz=NY_TZ).strftime("%m%d%H%M%S")
             stop_id = _recover_or_create_protection(client, cfg, state, ticker, managed_qty, stop, stamp)
@@ -141,42 +192,10 @@ def recover_pending_entries(client: TossLiveClient, cfg: LiveConfig, state: dict
             log_event("ENTRY_RECOVERED_PROTECTED", signalId=sid, ticker=ticker,
                       quantity=managed_qty, entryPrice=avg, stop=stop, protectiveConditionalId=stop_id)
         except Exception as exc:
-            KILL_FILE.touch(exist_ok=True)
             log_event("CRITICAL_ENTRY_RECOVERY_PROTECTION_FAILED", signalId=sid, ticker=ticker,
                       quantity=managed_qty, error=repr(exc), killFile=str(KILL_FILE))
-            try:
-                eorder = create_market_order(
-                    client, cfg, ticker, "SELL", managed_qty,
-                    client_order_id("ER", ticker, pd.Timestamp.now(tz=NY_TZ).strftime("%m%d%H%M%S")),
-                )
-                eoid = str(eorder.get("orderId") or "")
-                if eoid:
-                    wait_order_fill(client, cfg, eoid)
-                time.sleep(0.5)
-            except Exception as eexc:
-                log_event("ENTRY_RECOVERY_EMERGENCY_EXIT_ERROR", ticker=ticker, error=repr(eexc))
-            h2, _ = holdings_map(client, cfg)
-            residual = int(math.floor(broker_qty(h2, ticker) + 1e-9))
-            if residual <= 0:
-                state["positions"].pop(ticker, None)
-                _complete_pending_signal(state, sid)
-            else:
-                state["positions"][ticker]["quantity"] = residual
-                try:
-                    sid2 = _recover_or_create_protection(
-                        client, cfg, state, ticker, residual, stop,
-                        "rr" + pd.Timestamp.now(tz=NY_TZ).strftime("%m%d%H%M%S"),
-                    )
-                    state["positions"][ticker]["protectiveConditionalId"] = sid2
-                    state["positions"][ticker]["protectiveQuantity"] = residual
-                    state["positions"][ticker]["protectiveExpireDate"] = stop_expire_date()
-                    _complete_pending_signal(state, sid)
-                    log_event("ENTRY_RECOVERY_RESIDUAL_PROTECTED", ticker=ticker,
-                              quantity=residual, protectiveConditionalId=sid2)
-                except Exception as pexc:
-                    save_state(state)
-                    log_event("CRITICAL_ENTRY_RECOVERY_RESIDUAL_UNPROTECTED", ticker=ticker,
-                              quantity=residual, error=repr(pexc), killFile=str(KILL_FILE))
+            _emergency_flatten_recovery(client, cfg, state, sid, sig, ticker, managed_qty,
+                                        "protective_stop_recovery_failed")
 
 
 def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, Any], cli_live: bool) -> None:
@@ -192,12 +211,8 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
     if not (start <= now_ny <= end_entry):
         return
 
-    # Recover a BUY that may have crossed the process-crash boundary before
-    # evaluating any additional entry.
     recover_pending_entries(client, cfg, state, cli_live)
 
-    # Expire missed entry dates so a daemon outage does not create stale entries later.
-    # Submission-marked entries are never discarded here; recovery owns them.
     stale_ids = [
         sid for sid, x in state.get("pending", {}).items()
         if str(x.get("entryDate") or "") and str(x.get("entryDate")) < today
@@ -222,18 +237,25 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
     prices = client.prices(symbols)
     hmap = reconcile(client, cfg, state)
     open_order_symbols = {str(o.get("symbol") or "").upper() for o in client.open_orders(cfg.accountSeq)}
+    try:
+        open_conditional_symbols = {
+            str(o.get("symbol") or "").upper()
+            for o in client.open_conditional_orders(cfg.accountSeq)
+            if o.get("symbol")
+        }
+    except Exception as exc:
+        KILL_FILE.touch(exist_ok=True)
+        log_event("ENTRY_BLOCK_CONDITIONAL_READ_FAILED", error=repr(exc), killFile=str(KILL_FILE))
+        return
     equity, cash, _ = managed_equity_usd(client, cfg, state, hmap)
     if equity <= 0:
         log_event("ENTRY_BLOCK_NO_MANAGED_EQUITY", cashUsd=cash)
         return
 
-    # KILL blocks new entries without consuming the signal; exits/reconcile remain live.
     if KILL_FILE.exists():
         log_event("ENTRY_BLOCK_KILL_FILE", pendingToday=len(pending))
         return
 
-    # Important: entries are evaluated before any trend-off next-open exits,
-    # preserving V010/V014 conservative same-open capacity convention.
     for sig in pending:
         sid = str(sig["signalId"]); ticker = str(sig["ticker"]).upper()
         if sid not in state["pending"]:
@@ -246,6 +268,8 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
             reason = "preexisting_holding"
         elif ticker in open_order_symbols:
             reason = "open_order_exists"
+        elif ticker in open_conditional_symbols:
+            reason = "preexisting_conditional_order"
         elif len(state["positions"]) >= cfg.maxPositions:
             reason = "position_limit"
         elif px <= 0:
@@ -270,7 +294,7 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
         current_gross = planned_gross_usd(state)
         allowed_notional = min(desired_notional, max(0.0, cfg.maxGrossExposure * equity - current_gross), cash)
         qty = int(math.floor(allowed_notional / px))
-        qty -= qty % 2  # exact 50% partial with whole shares
+        qty -= qty % 2
         if qty < 2:
             log_event("ENTRY_SKIP", signalId=sid, ticker=ticker, reason="size_below_even_2", desiredNotional=allowed_notional, price=px)
             _complete_pending_signal(state, sid)
@@ -279,8 +303,6 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
         require_live(cfg, cli_live)
         stamp = today.replace("-", "")
         cid = client_order_id("B", ticker, stamp)
-        # Durable write BEFORE the broker POST. On restart this marker owns any
-        # newly appearing holding/open BUY for this previously-flat ticker.
         state["pending"][sid].update({
             "entrySubmissionStarted": True,
             "entryClientOrderId": cid,
@@ -295,7 +317,6 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
         except Exception as exc:
             log_event("ENTRY_SUBMIT_AMBIGUOUS_OR_FAILED", signalId=sid, ticker=ticker,
                       clientOrderId=cid, error=repr(exc))
-            # Do not clear the marker. Recovery decides from broker state.
             try:
                 recover_pending_entries(client, cfg, state, cli_live)
             except Exception as rex:
@@ -314,7 +335,6 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
 
         detail = wait_order_fill(client, cfg, oid)
         status = str(detail.get("status") or "")
-        # Never leave an unknown/open BUY remainder hanging while arming a stop.
         if status not in {"FILLED", "REJECTED", "CANCELED"}:
             try:
                 client.cancel_order(cfg.accountSeq, oid)
@@ -333,43 +353,29 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
         managed_qty = int(math.floor(filled_qty + 1e-9))
         if managed_qty < 1 or avg <= 0:
             log_event("ENTRY_NOT_FILLED", ticker=ticker, orderId=oid, status=status, filledQuantity=filled_qty)
-            _complete_pending_signal(state, sid)
+            # If the order API says no valid fill but broker holdings changed, the
+            # durable marker remains and recovery owns the ambiguity.
+            hcheck, _ = holdings_map(client, cfg)
+            if int(math.floor(broker_qty(hcheck, ticker) + 1e-9)) > int(state["pending"][sid].get("preEntryQuantity") or 0):
+                recover_pending_entries(client, cfg, state, cli_live)
+            else:
+                _complete_pending_signal(state, sid)
             continue
         if managed_qty != qty:
             log_event("ENTRY_PARTIAL_FILLED_MANAGE_ALL", ticker=ticker, requested=qty, filled=managed_qty, status=status)
+        if avg <= float(sig["initialStop"]):
+            _emergency_flatten_recovery(client, cfg, state, sid, sig, ticker, managed_qty,
+                                        "live_fill_at_or_below_stop")
+            continue
         target = avg + RR_TARGET * (avg - float(sig["initialStop"]))
-        # Put the live holding in state BEFORE stop creation so any failure path still tracks it.
         state["positions"][ticker] = _position_from_fill(sig, ticker, sid, today, oid, managed_qty, avg)
         save_state(state)
         try:
             stop_id = place_protective_stop(client, cfg, ticker, managed_qty, float(sig["initialStop"]), stamp)
         except Exception as exc:
             log_event("PROTECTIVE_STOP_FAILED", ticker=ticker, error=repr(exc), quantity=managed_qty)
-            # Fail closed: flatten immediately. If anything remains, track it and retry protection.
-            try:
-                eorder = create_market_order(client, cfg, ticker, "SELL", managed_qty, client_order_id("E", ticker, stamp))
-                eoid = str(eorder.get("orderId") or "")
-                edetail = wait_order_fill(client, cfg, eoid) if eoid else {}
-                log_event("EMERGENCY_EXIT_SUBMITTED", ticker=ticker, orderId=eoid, status=edetail.get("status"))
-            except Exception as eexc:
-                log_event("EMERGENCY_EXIT_ERROR", ticker=ticker, error=repr(eexc))
-            h2, _ = holdings_map(client, cfg)
-            residual = int(math.floor(broker_qty(h2, ticker) + 1e-9))
-            if residual <= 0:
-                state["positions"].pop(ticker, None)
-            else:
-                state["positions"][ticker]["quantity"] = residual
-                try:
-                    sid2 = _recover_or_create_protection(client, cfg, state, ticker, residual,
-                                                         float(sig["initialStop"]), stamp + "r")
-                    state["positions"][ticker]["protectiveConditionalId"] = sid2
-                    state["positions"][ticker]["protectiveQuantity"] = residual
-                    state["positions"][ticker]["protectiveExpireDate"] = stop_expire_date()
-                    log_event("EMERGENCY_RESIDUAL_PROTECTED", ticker=ticker, quantity=residual, protectiveConditionalId=sid2)
-                except Exception as pexc:
-                    KILL_FILE.touch(exist_ok=True)
-                    log_event("CRITICAL_UNPROTECTED_RESIDUAL", ticker=ticker, quantity=residual, error=repr(pexc), killFile=str(KILL_FILE))
-            _complete_pending_signal(state, sid)
+            _emergency_flatten_recovery(client, cfg, state, sid, sig, ticker, managed_qty,
+                                        "initial_protective_stop_failed")
             continue
         state["positions"][ticker]["protectiveConditionalId"] = stop_id
         state["positions"][ticker]["protectiveQuantity"] = managed_qty
@@ -377,7 +383,6 @@ def process_entries(client: TossLiveClient, cfg: LiveConfig, state: dict[str, An
         _complete_pending_signal(state, sid)
         log_event("ENTRY_FILLED_PROTECTED", ticker=ticker, orderId=oid, quantity=managed_qty, entryPrice=avg,
                   stop=sig["initialStop"], target=target, protectiveConditionalId=stop_id)
-        # Refresh cash/equity after each accepted entry.
         hmap, _ = holdings_map(client, cfg)
         equity, cash, _ = managed_equity_usd(client, cfg, state, hmap)
 
