@@ -61,7 +61,10 @@ DEFAULT_MAX_OPEN_RISK = 0.08
 DEFAULT_MAX_GROSS = 1.00
 ENTRY_WINDOW_MINUTES = 3
 POLL_SECONDS = 2.0
-STOP_EXPIRY_DAYS = 120
+# OpenAPI requires expireDate but does not publish a maximum horizon.
+# Use a conservative 90-day horizon and refresh well before expiry.
+STOP_EXPIRY_DAYS = 90
+STOP_REFRESH_DAYS = 14
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "sor_live.local.json"
@@ -200,6 +203,13 @@ class TossLiveClient:
     def buying_power_usd(self, account_seq: int) -> float:
         result = self.request("GET", "/api/v1/buying-power", group="ORDER_INFO", account_seq=account_seq, params={"currency": "USD"}).get("result") or {}
         return float(result.get("cashBuyingPower") or 0.0)
+
+    def sellable_quantity(self, account_seq: int, symbol: str) -> float:
+        result = self.request(
+            "GET", "/api/v1/sellable-quantity", group="ORDER_INFO",
+            account_seq=account_seq, params={"symbol": symbol},
+        ).get("result") or {}
+        return float(result.get("sellableQuantity") or 0.0)
 
     def prices(self, symbols: list[str]) -> dict[str, float]:
         if not symbols:
