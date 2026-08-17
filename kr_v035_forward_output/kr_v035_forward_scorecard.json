@@ -5,7 +5,7 @@
   "parameters_frozen": true,
   "frozen_config": "PB_WIDE|FAST|DIRECT|H26|TRAIL_P70",
   "forward_start_kst": "2026-08-11 00:00:00+09:00",
-  "asof_kst": "2026-08-14 19:46:14.755323+09:00",
+  "asof_kst": "2026-08-17 18:29:33.820731+09:00",
   "clean_forward_observation": true,
   "forward_candidate_count": 1,
   "results": {
