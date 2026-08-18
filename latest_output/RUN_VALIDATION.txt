@@ -1,5 +1,5 @@
 PASS
 first_run_baseline_only=0
 resolved_tickers=145
-new_signals_this_run=126
+new_signals_this_run=140
 PASS means shadow scan completed; no live-order approval.
