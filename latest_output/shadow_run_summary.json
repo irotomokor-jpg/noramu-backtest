@@ -1,12 +1,12 @@
 {
   "version": "v0.24",
-  "run_time_utc": "2026-08-19 19:47:30.927636+00:00",
+  "run_time_utc": "2026-08-19 21:50:30.507917+00:00",
   "initialized_at_utc": "2026-08-10 04:07:09.000547+00:00",
   "first_run_baseline_only": false,
   "resolved_tickers": 145,
   "failed_tickers": 2,
-  "new_signals_this_run": 159,
-  "all_logged_prospective_signals": 1816,
-  "seen_setup_ids": 40257,
+  "new_signals_this_run": 157,
+  "all_logged_prospective_signals": 1973,
+  "seen_setup_ids": 42217,
   "warning": "No orders. yfinance 60m is research/shadow data, not execution-grade."
 }
