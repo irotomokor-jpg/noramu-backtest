@@ -1,13 +1,5 @@
-# Noramu Backtest / Shadow Research
+# Transit PWA
 
-The repository now runs US and KR research separately.
+This repository is being repurposed for the Transit PWA project.
 
-- US: `Noramu US v0.24 Prospective Shadow`
-- KR: `Noramu KR v0.27 Execution Validation`
-
-See `RUN_US_KR_SEPARATELY.md` for the exact state/output separation and execution notes.
-
-US prospective state remains under `state/` and `latest_output/`.
-KR PIT/execution state uses `kr_state_pit/` and `kr_execution_latest_output/`.
-
-Research only. No live-order approval.
+Legacy auto-trading files have been removed from the current branch tree.

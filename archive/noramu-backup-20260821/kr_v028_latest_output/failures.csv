@@ -1,5 +1,0 @@
-﻿market,symbol,name,yf_ticker,error
-KOSDAQ,048260,오스템임플란트,048260.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
-KOSDAQ,440110,파두,440110.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
-KOSDAQ,034230,파라다이스,034230.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
-KOSDAQ,085370,루트로닉,085370.KQ,RuntimeError('attempt1: rows=0; attempt2: rows=0; attempt3: rows=0')
