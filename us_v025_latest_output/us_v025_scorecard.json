@@ -1,0 +1,25 @@
+{
+  "version": "v0.25-US-CS3-MRS2-ROBUSTNESS",
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "clean_unseen_oos_available": false,
+  "frozen_strategy": "C-S3 + QQQ MRS v2",
+  "parameters_retuned": false,
+  "baseline": {
+    "pnl": 321.77033001531686,
+    "pf": 1.2652369775095773,
+    "max_dd": 0.03897916156523262,
+    "trades": 180,
+    "return_pct": 0.06435406600306415
+  },
+  "all_costs_5_to_30bps_positive": false,
+  "5k_and_20k_positive_at_30bps": false,
+  "top20_top30_top40_positive": true,
+  "top3_exact_exclusion_positive": false,
+  "2025_positive": false,
+  "exact_2022_60m_test_available": false,
+  "2022_note": "yfinance 60m cannot reach 2022 as of 2026; no daily proxy substituted.",
+  "static_universe_survivorship_bias_remaining": true,
+  "status": "RESEARCH_ONLY",
+  "next_required_validation": "reconstruct historical index membership / PIT universe, then freeze for forward shadow only if robustness survives"
+}
