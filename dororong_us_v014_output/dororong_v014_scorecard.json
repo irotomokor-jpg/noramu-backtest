@@ -1,0 +1,24 @@
+{
+  "version": "v0.14-DORORONG-US-RAW-ROBUSTNESS",
+  "strategy": "DORO_D1_AGG",
+  "noramu_mixed": false,
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "parameters_retuned": false,
+  "static_universe": true,
+  "universe_count": 27,
+  "data_coverage": 1.0,
+  "baseline_5bps": {
+    "pnl": 403.64705322053953,
+    "return_pct": 0.08072941064410388,
+    "pf": 1.2222319119710328,
+    "max_dd": 0.037833925664684354,
+    "trades": 440
+  },
+  "all_5_10_20_30bps_positive": false,
+  "exact_top3_exclusion_positive": true,
+  "exact_semis_exclusion_positive": true,
+  "all_calendar_years_positive": false,
+  "status": "RESEARCH_ONLY",
+  "next_required_validation": "historical PIT/dynamic universe and clean forward shadow only if static robustness survives"
+}
