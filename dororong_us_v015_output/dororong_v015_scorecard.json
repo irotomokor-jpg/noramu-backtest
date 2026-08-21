@@ -1,0 +1,34 @@
+{
+  "version": "v0.15-DORORONG-US-MARKET-GATE-ROBUSTNESS",
+  "strategy_family": "DORO_D1_AGG",
+  "noramu_mixed": false,
+  "parameters_retuned": false,
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "static_universe": true,
+  "universe_count": 27,
+  "data_coverage": 1.0,
+  "variants": [
+    "RAW",
+    "NOT_BEAR",
+    "BULL"
+  ],
+  "costs_bps_side": [
+    5.0,
+    10.0,
+    20.0,
+    30.0
+  ],
+  "forward_shadow_candidates": [
+    "NOT_BEAR",
+    "BULL"
+  ],
+  "strict_survivors": [
+    "NOT_BEAR",
+    "BULL"
+  ],
+  "posthoc_selected_shadow_variant": "BULL",
+  "selection_warning": "selection follows historical comparison and is not clean OOS evidence",
+  "status": "FORWARD_SHADOW_READY",
+  "next_required_validation": "freeze selected gate without retuning, then prospective shadow from next unused US session; historical PIT/dynamic-universe test remains required before any live consideration"
+}
