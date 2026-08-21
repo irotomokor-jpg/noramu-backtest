@@ -1,0 +1,40 @@
+{
+  "version": "v0.01-US-LEVERAGED-ETF-MA200",
+  "research_only": true,
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "parameters_retuned_after_results": false,
+  "actual_listed_history_only": true,
+  "synthetic_pre_inception_data": false,
+  "tbill_proxy": "BIL",
+  "ma_days": 200,
+  "leveraged_etfs": [
+    "TQQQ",
+    "TECL",
+    "SOXL"
+  ],
+  "base_etfs": {
+    "TQQQ": "QQQ",
+    "TECL": "XLK",
+    "SOXL": "SOXX"
+  },
+  "fixed_bands": {
+    "TQQQ": 0.03,
+    "TECL": 0.03,
+    "SOXL": 0.08
+  },
+  "costs_bps_side": [
+    5.0,
+    10.0,
+    20.0
+  ],
+  "variant_count": 24,
+  "robust_candidate_count": 15,
+  "selected_per_lever": {
+    "TQQQ": "TQQQ|SIG_SELF|BAND_3|OFF_BASE",
+    "TECL": "TECL|SIG_BASE|BAND_0|OFF_BASE",
+    "SOXL": "SOXL|SIG_SELF|BAND_8|OFF_BASE"
+  },
+  "status": "HISTORICAL_CANDIDATES_FOUND",
+  "next_required_validation": "rolling/walk-forward stability, signal-date audit, alternate defensive assets only after candidate freeze; historical selection is not clean OOS evidence"
+}
