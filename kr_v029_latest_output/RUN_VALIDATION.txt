@@ -1,0 +1,33 @@
+PASS
+{
+  "version": "v0.29-KR-ADAPTIVE-EXIT-ENTRY",
+  "historical_backtest_only": true,
+  "live_approval": false,
+  "v028_control_reproduced": false,
+  "v028_5m1t_pnl_delta": 2793.2450000000536,
+  "best_variant": {
+    "variant": "PULLBACK|TRAIL_P70",
+    "status": "SURVIVOR",
+    "5m_1t_pnl": 58172.64200000027,
+    "5m_1t_pf": 1.2699452623017928,
+    "5m_1t_dd": 0.014259272318719485,
+    "5m_2t_pnl": 16671.01899999933,
+    "20m_1t_pnl": 468551.2080000007,
+    "jul2026_5m_1t_pnl": -42142.60499999998,
+    "jul2026_trades": 2,
+    "robust_score": 120030.90753128065
+  },
+  "survivor_count": 2,
+  "adaptive_method": {
+    "walk_forward": true,
+    "lookback_bars": 480,
+    "pivot_span": 2,
+    "horizon_bars": 26,
+    "min_samples": 8,
+    "fallback_pct": 0.03,
+    "clip": [
+      0.015,
+      0.06
+    ]
+  }
+}
