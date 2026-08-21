@@ -1,0 +1,102 @@
+name: Noramu US v0.24 Prospective Shadow
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "noramu_level_rr_shadow_v024.py"
+      - "noramu_level_state_v022.py"
+      - "noramu_dororong_backtest_v092.py"
+      - "noramu_dororong_integrated_v012.py"
+      - "noramu_dororong_integrated_v013.py"
+      - "noramu_dororong_suboverlay_v011.py"
+      - "noramu_us_v07_legacy_engine.py"
+      - "requirements.txt"
+      - ".github/workflows/noramu-shadow.yml"
+  schedule:
+    - cron: "45 14,16,18,20,22 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noramu-us-v024-shadow
+  cancel-in-progress: false
+
+jobs:
+  us-shadow-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Frozen-engine self-test
+        run: python noramu_level_rr_shadow_v024.py --self-test
+
+      - name: Run US prospective shadow scan
+        run: |
+          rm -rf latest_output
+          mkdir -p latest_output state cache
+          python noramu_level_rr_shadow_v024.py \
+            --state-dir state \
+            --outdir latest_output \
+            --cache-dir cache \
+            --period-60m 6mo
+
+      - name: Verify US run
+        run: |
+          test -f latest_output/RUN_VALIDATION.txt
+          grep -q '^PASS' latest_output/RUN_VALIDATION.txt
+          cat latest_output/RUN_VALIDATION.txt
+          cat latest_output/shadow_run_summary.json
+
+      - name: Upload US artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noramu-us-v024-shadow-${{ github.run_number }}
+          path: |
+            latest_output/
+            state/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Persist US prospective state and latest result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state latest_output
+
+          if git diff --cached --quiet; then
+            echo "No US state/output changes to commit."
+            exit 0
+          fi
+          git commit -m "us-shadow: update prospective state [skip ci]"
+
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          exit 1
