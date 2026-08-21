@@ -1,0 +1,29 @@
+name: Trading Engine v0.01 Replay Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/trading-engine-v001-replay-contract]
+    paths:
+      - 'TRADING_ENGINE_REPLAY_CONTRACT_v001.md'
+      - 'trading_engine_v001_contract.py'
+      - '.github/workflows/trading-engine-v001-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/trading-engine-v001-replay-contract
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile
+        run: python -m py_compile trading_engine_v001_contract.py
+      - name: Contract self-test
+        run: python trading_engine_v001_contract.py
+      - name: Safety assertions
+        run: |
+          grep -q 'NO_ORDERS' TRADING_ENGINE_REPLAY_CONTRACT_v001.md
+          grep -q 'live_approval = false' TRADING_ENGINE_REPLAY_CONTRACT_v001.md
