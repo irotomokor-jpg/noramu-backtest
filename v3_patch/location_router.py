@@ -35,6 +35,7 @@ def _normalize_station_row(x: dict[str, Any], lat: float, lon: float) -> dict[st
     xlon = _float(x.get('x'))
     ylat = _float(x.get('y'))
     distance = _float(x.get('distance'))
+    # Prefer our own WGS84 distance whenever coordinates are available; API distance units vary by endpoint.
     if xlon is not None and ylat is not None:
         distance = haversine_m(lat, lon, ylat, xlon)
     return {
@@ -73,6 +74,7 @@ def _persist_stations(items: list[dict[str, Any]]) -> None:
 
 def nearby_bus_stations(lat: float, lon: float, limit: int = 8, watch: bool = False) -> dict[str, Any]:
     limit = max(1, min(int(limit), 20))
+    # Fast local first. Gyeonggi x/y are lon/lat in the station/route APIs.
     dlat = 0.03
     dlon = 0.04
     with connect() as con:
