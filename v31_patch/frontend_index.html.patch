@@ -1,0 +1,20 @@
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+   <meta name="theme-color" content="#111827" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+-  <link rel="stylesheet" href="/static/style.css?v=140" />
++  <link rel="stylesheet" href="/static/style.css?v=141" />
+   <title>몇 시에 나가?</title>
+ </head>
+ <body>
+@@ -81,6 +81,6 @@
+ 
+   <footer>Latest · Full Metadata + Watchlist Collector</footer>
+ </main>
+-<script src="/static/app.js?v=140"></script>
++<script src="/static/app.js?v=141"></script>
+ </body>
+ </html>
+\ No newline at end of file
