@@ -1,0 +1,10 @@
+[Unit]
+Description=Transit rail XLSX importer and graph catalog builder
+After=network-online.target transit-web.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/transit-pwa
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/transit-pwa/.venv/bin/python -m backend.rail_maintainer --once
