@@ -1,0 +1,119 @@
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -23,6 +23,7 @@
+     genericNote:"현재 범용 경로는 노선 구조 기반 예상입니다.",noRoute:"경로 후보 없음",arrived:"{name} 도착",fromOrigin:"출발지: {name}",wholeEstimate:"전체 구조 예상 약 {n}분",
+     walkFromTo:"{from} → {to}",afterAlightWalk:"하차 후 도보 약 {n}분",busRide:"{route}번 탑승",busEstimate:"버스 구조 예상 약 {n}분",
+     currentToStop:"현재 위치 → {name}",subwayRide:"{from}역 → {to}역",subwayTo:"{to}역까지 지하철",
++    beforeTime:"{time} 이전",historyReliable:"동시간대 이력 {n}일",historyReference:"이력 {n}일 · 표본 부족(참고용)",p90Travel:"P90 {n}분",serviceLocal:"일반",serviceExpress:"급행",serviceLimited:"특급",serviceUnknown:"종별 미제공",
+     langChanged:"언어가 변경되었습니다. 현재 결과는 다시 계산하면 선택한 언어로 표시됩니다."
+   },
+   ja:{
+@@ -47,6 +48,7 @@
+     genericNote:"現在の汎用経路は路線構造ベースの推定です。",noRoute:"経路候補なし",arrived:"{name} 到着",fromOrigin:"出発地: {name}",wholeEstimate:"全体構造推定 約{n}分",
+     walkFromTo:"{from} → {to}",afterAlightWalk:"降車後 徒歩約{n}分",busRide:"{route}番 乗車",busEstimate:"バス構造推定 約{n}分",
+     currentToStop:"現在地 → {name}",subwayRide:"{from}駅 → {to}駅",subwayTo:"{to}駅まで地下鉄",
++    beforeTime:"{time}以前",historyReliable:"同時間帯履歴 {n}日",historyReference:"履歴 {n}日・標本不足（参考）",p90Travel:"P90 {n}分",serviceLocal:"普通",serviceExpress:"急行",serviceLimited:"特急",serviceUnknown:"種別未提供",
+     langChanged:"言語を変更しました。現在の結果は再検索すると選択した言語で表示されます。"
+   },
+   en:{
+@@ -71,10 +73,26 @@
+     genericNote:"General routing is currently a route-structure estimate.",noRoute:"No route found",arrived:"Arrive at {name}",fromOrigin:"From: {name}",wholeEstimate:"Whole-trip structural estimate about {n} min",
+     walkFromTo:"{from} → {to}",afterAlightWalk:"Walk about {n} min after alighting",busRide:"Board bus {route}",busEstimate:"Bus structural estimate about {n} min",
+     currentToStop:"Current location → {name}",subwayRide:"{from} → {to}",subwayTo:"Subway to {to}",
++    beforeTime:"before {time}",historyReliable:"Same-time history: {n} days",historyReference:"History: {n} days · low sample (reference)",p90Travel:"P90 {n} min",serviceLocal:"Local",serviceExpress:"Express",serviceLimited:"Limited Express",serviceUnknown:"Service type unavailable",
+     langChanged:"Language changed. Recalculate the current trip to render the result in the selected language."
+   }
+ };
+ function tr(key,vars={}){let s=(I18N[state?.lang]||I18N.ko)[key]??I18N.ko[key]??key;return String(s).replace(/\{(\w+)\}/g,(_,k)=>vars[k]??"");}
++function formatDuration(v){
++  const n=Math.max(0,Math.round(Number(v)||0));
++  const h=Math.floor(n/60),m=n%60;
++  if(state.lang==='ja') return h?`${h}時間${m?`${m}分`:''}`:`${m}分`;
++  if(state.lang==='en') return h?`${h}h${m?` ${m}m`:''}`:`${m}m`;
++  return h?`${h}시간${m?` ${m}분`:''}`:`${m}분`;
++}
++function railTypeLabel(v){
++  const raw=String(v||'').trim(); if(!raw)return '';
++  if(/특급|limited|特急/i.test(raw))return tr('serviceLimited');
++  if(/급행|express|急行/i.test(raw))return tr('serviceExpress');
++  if(/일반|보통|완행|local|普通/i.test(raw))return tr('serviceLocal');
++  return raw;
++}
++function railTypeChip(v){const x=railTypeLabel(v);return x?`<span class="rail-type-chip">${x}</span>`:'';}
+ function applyLanguage(){
+   document.documentElement.lang=state.lang;
+   document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(I18N[state.lang]?.[k]||I18N.ko[k])el.textContent=tr(k);});
+@@ -320,17 +338,18 @@
+   if(c.egressStop){
+     push('walk','-',tr('walkFromTo',{from:c.egressStop.name,to:tr('currentLocation')}),tr('afterAlightWalk',{n:c.egressWalkMinutes||'-'}),`${Math.round(c.egressDistanceM||0)}m`);
+   }
+-  push('finish','-',tr('arrived',{name:state.destination.name}),tr('fromOrigin',{name:state.origin.name}),tr('wholeEstimate',{n:c.totalMinutesEstimate||'-'}));
++  push('finish','-',tr('arrived',{name:state.destination.name}),tr('fromOrigin',{name:state.origin.name}),`${state.lang==='ko'?'전체 구조 예상':state.lang==='ja'?'全体構造推定':'Whole-trip structural estimate'} ${formatDuration(c.totalMinutesEstimate)}`);
+   return `<div class="timeline-v2">${rows.join('')}</div>`;
+ }
+ 
+ function busCandidateHtml(b,i){
+-  const board=b.recommendedBoarding||b.latestBoarding||b.originMedian||"-";
++  const rawBoard=b.recommendedBoarding||b.latestBoarding||b.originMedian||"-";
++  const board=b.recommendedBoardingIsCutoff?tr('beforeTime',{time:rawBoard}):rawBoard;
+   const dest=b.estimatedGosaek||b.estimatedDestination||"-";
+   const walk=b.accessWalkMinutes?` · ${tr('walkTo',{name:b.accessStop?.name||tr('bus')})} ${tr('minutes',{n:b.accessWalkMinutes})}`:"";
+   const stop=b.accessStop?`<br>${tr('gps')} · ${b.accessStop.name} (${Math.round(b.accessDistanceM||0)}m)`:"";
+   const hist=b.historyAvailable
+-    ? `${state.lang==='ko'?`과거 이력 ${b.samples||0}일`:state.lang==='ja'?`過去履歴 ${b.samples||0}日`:`History ${b.samples||0} days`}`
++    ? `${b.historyReliable?tr('historyReliable',{n:b.samples||0}):tr('historyReference',{n:b.samples||0})}${b.travelP90Min?` · ${tr('p90Travel',{n:b.travelP90Min})}`:''}`
+     : `${tr('routeStructure')}${b.headway?.minHeadway?` · ${state.lang==='ko'?'배차':state.lang==='ja'?'運行間隔':'headway'} ${b.headway.minHeadway}~${b.headway.maxHeadway} min`:""}`;
+   const suffix=state.lang==='ko'?'번':'';
+   return `<div class="bus-candidate ${i===0?"best":""}">
+@@ -344,7 +363,8 @@
+   const shin=x.shinbundang,suin=x.suinBundang;
+   const buses=x.busCandidates||[];
+   const best=x.realtimeRecommendedBus||x.recommendedBus||buses[0]||{};
+-  const board=best.recommendedBoarding||best.latestBoarding||"-";
++  const rawBoard=best.recommendedBoarding||best.latestBoarding||"-";
++  const board=best.recommendedBoardingIsCutoff?tr('beforeTime',{time:rawBoard}):rawBoard;
+   const busDest=best.estimatedGosaek||best.estimatedDestination||x.gosaekPlatformDeadline||"-";
+   const access=best.accessWalkMinutes?timelineRow(
+     "walk",x.recommendedLeaveTime||"-",tr('leaveCurrent'),tr('walkTo',{name:best.accessStop?.name||tr('bus')}),tr('minutes',{n:best.accessWalkMinutes})+` · ${Math.round(best.accessDistanceM||0)}m`
+@@ -361,21 +381,21 @@
+       )}
+       ${timelineRow(
+         "suin", suin.departure,
+-        `${badge("수인분당선")}고색 → 정자`,
+-        `${suin.arrival} · ${tr('suin')}`,
++        `${badge("수인분당선")}${railTypeChip(suin.serviceType)}고색 → 정자`,
++        `${suin.arrival} · ${tr('suin')}${suin.terminal?` · ${suin.terminal}행`:''}`,
+         tr('minutes',{n:suin.runtimeMin||'-'})
+       )}
+       ${timelineRow(
+         "shin", shin.departure,
+-        `${badge("신분당선")}정자 → 판교`,
+-        `${shin.arrival} · ${tr('shin')}`,
++        `${badge("신분당선")}${railTypeChip(shin.serviceType)}정자 → 판교`,
++        `${shin.arrival} · ${tr('shin')}${shin.terminal?` · ${shin.terminal}행`:''}`,
+         tr('minutes',{n:shin.runtimeMin||'-'})
+       )}
+       ${timelineRow(
+         "finish", x.finalArrival||shin.arrival,
+         tr('arrived',{name:state.destination.name}),
+         `${x.target} · ${slackText}`,
+-        `${tr('totalAbout')} ${x.totalMinutesEstimate??"-"} min`
++        `${tr('totalAbout')} ${formatDuration(x.totalMinutesEstimate)}`
+       )}
+     </div>`;
+ 
+@@ -384,12 +404,12 @@
+   const liveBanner=liveRec&&liveVeh?`<div class="live-recommend"><b>${tr('liveTakeNow')}</b> · ${liveRec.routeName}${state.lang==='ko'?'번':''} · ${tr('minutesLater',{n:liveVeh.etaMin??'-'})} · ${tr('targetConnection')}</div>`:'';
+   $("#result").innerHTML=`
+     <strong class="big">${state.origin.name} → ${state.destination.name}</strong>
+-    <div class="path-summary"><b>${tr('arriveBySummary',{target:x.target})}</b> ${tr('recommendedLeave')} <b>${x.recommendedLeaveTime||board}</b> · ${tr('finalArrival')} <b>${x.finalArrival||shin.arrival}</b> · ${tr('totalAbout')} <b>${x.totalMinutesEstimate??"-"} min</b> · <b>${slackText}</b></div>
++    <div class="path-summary"><b>${tr('arriveBySummary',{target:x.target})}</b> ${tr('recommendedLeave')} <b>${x.recommendedLeaveTime||board}</b> · ${tr('finalArrival')} <b>${x.finalArrival||shin.arrival}</b> · ${tr('totalAbout')} <b>${formatDuration(x.totalMinutesEstimate)}</b> · <b>${slackText}</b></div>
+     ${liveBanner}
+     ${timeline}
+     <h2>${tr('busCandidates')}</h2>
+     ${buses.length?buses.map(busCandidateHtml).join(""):`<div class="warning-note">${tr('noBusCandidate')}</div>`}
+-    <div class="status-note">${x.plannerNote||""}<br>${tr('live')}: ${x.realtimeCheckedAt||'-'} · Rail: ${x.railSource} · ${x.railPairing||"-"}</div>`;
++    <div class="status-note">${x.plannerNote||""}<br>${tr('live')}: ${x.realtimeCheckedAt||'-'} · Rail: ${x.railSource} · ${x.railScheduleBasis||x.railPairing||"-"}</div>`;
+ }
+ 
+ 
