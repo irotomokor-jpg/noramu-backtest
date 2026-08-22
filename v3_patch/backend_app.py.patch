@@ -84,6 +84,7 @@
 +            latest_board = int(deadline_sec - travel * 60)
 +            info = router.route_info(rid)
 +            headway = router.headway_profile(info, 'weekday')
++            # Ranking only; this does not pretend to know an exact future bus timetable.
 +            reliability = float(headway.get('reliabilityPenalty') or 0)
 +            score = travel + reliability + float(headway.get('expectedWaitMin') or 0)
 +            out.append({
@@ -180,6 +181,7 @@
 +        upsert_watch(c['routeId'], c['routeName'], 90, 'reverse-candidate')
 +        buses.append(merged)
 +        seen.add(c['routeName'])
++    # Keep requested route names visible even before metadata/hydration discovers them.
 +    for h in history:
 +        if h.get('routeName') not in seen and h.get('historyAvailable'):
 +            h = dict(h)
