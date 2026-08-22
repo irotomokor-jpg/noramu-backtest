@@ -1,0 +1,58 @@
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -165,7 +165,7 @@
+ 
+     out = []
+     used_dest = set()
+-    for dep, row in sorted(origins):
++    for dep, row in sorted(origins, key=lambda z: z[0]):
+         terminal = norm_name(row.get('endSubwayStationNm') or '')
+         if sign and terminal in line:
+             ti = line.index(terminal)
+@@ -681,9 +681,9 @@
+         watched = watch_routes_serving_station(origin_station_id, 90, 'reverse-origin')
+         structural = structural_bus_candidates(origin_station_id, deadline, route_names)
+     elif origin_lat is not None and origin_lon is not None:
+-        near = nearby_bus_stations(float(origin_lat), float(origin_lon), 6, True)
++        near = nearby_bus_stations(float(origin_lat), float(origin_lon), 10, True)
+         gps_nearby = near.get('items', [])
+-        for stop in gps_nearby[:5]:
++        for stop in gps_nearby[:8]:
+             cs = structural_bus_candidates(stop['id'], deadline, route_names)
+             for c in cs:
+                 c = dict(c)
+@@ -715,19 +715,21 @@
+         upsert_watch(c['routeId'], c['routeName'], 90, 'reverse-candidate')
+         buses.append(merged)
+         seen.add(c['routeName'])
+-    # Keep requested route names visible even before metadata/hydration discovers them.
+-    for h in history:
+-        if h.get('routeName') not in seen and h.get('historyAvailable'):
+-            h = dict(h)
+-            try:
+-                bsec = db_hm_to_sec(h.get('originMedian'))
+-            except Exception:
+-                bsec = guess
+-            h['recommendedBoardingSec'] = bsec
+-            h['recommendedBoarding'] = db_sec_to_hm(bsec, True)
+-            h['estimatedGosaek'] = h.get('estimatedDestination')
+-            h['source'] = 'historical-arrivals'
+-            buses.append(h)
++    # Orphan benchmark history must never be attached to a concrete GPS/selected origin.
++    # Otherwise a user far from 와우지구 can appear to teleport onto a 와우지구 historical route.
++    if not origin_station_id and origin_lat is None and origin_lon is None:
++        for h in history:
++            if h.get('routeName') not in seen and h.get('historyAvailable'):
++                h = dict(h)
++                try:
++                    bsec = db_hm_to_sec(h.get('originMedian'))
++                except Exception:
++                    bsec = guess
++                h['recommendedBoardingSec'] = bsec
++                h['recommendedBoarding'] = db_sec_to_hm(bsec, True)
++                h['estimatedGosaek'] = h.get('estimatedDestination')
++                h['source'] = 'historical-arrivals'
++                buses.append(h)
+ 
+     live_meta = attach_live_bus_arrivals(buses, deadline, 4)
+     buses = live_meta['candidates']
