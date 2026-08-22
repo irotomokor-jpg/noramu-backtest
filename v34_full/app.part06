@@ -1,0 +1,23 @@
+$("#destinationInput").value="";
+syncSelected();
+setMode("reverse");
+applyLanguage();
+
+
+async function refreshDataStatus(){
+  try{
+    const s=await api('/api/status');
+    const c=s.counts||{};
+    if($('#metadataStatus')) $('#metadataStatus').innerHTML=`노선 <b>${(c.bus_routes||0).toLocaleString()}</b> · 정류장 <b>${(c.bus_stations||0).toLocaleString()}</b> · 노선-정류장 <b>${(c.route_stations||0).toLocaleString()}</b><br>마지막 동기화: ${s.metadataSyncedAt||'아직 안 함'}`;
+    const enabled=(s.watchlist||[]).filter(x=>x.enabled).length;
+    if($('#watchStatus')) $('#watchStatus').innerHTML=`활성 노선 <b>${enabled}</b> · 오늘 위치 API <b>${s.locationCallsToday}</b>회`;
+    if($('#historyStatus')) $('#historyStatus').innerHTML=`통과 이벤트 <b>${(c.bus_arrivals||0).toLocaleString()}</b>건 · raw 관측 <b>${(c.bus_observations||0).toLocaleString()}</b>건`;
+  }catch(e){ if($('#metadataStatus')) $('#metadataStatus').textContent='상태 조회 실패: '+e.message; }
+}
+refreshDataStatus();
+
+// local dev: ensure stale SW/cache cannot take over
+(async()=>{try{
+  if("serviceWorker" in navigator){for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister();}
+  if("caches" in window){for(const k of await caches.keys())await caches.delete(k);}
+}catch(e){}})();
