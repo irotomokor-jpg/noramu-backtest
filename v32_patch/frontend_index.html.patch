@@ -1,0 +1,125 @@
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,82 +5,91 @@
+   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+   <meta name="theme-color" content="#111827" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+-  <link rel="stylesheet" href="/static/style.css?v=141" />
++  <link rel="stylesheet" href="/static/style.css?v=152" />
+   <title>몇 시에 나가?</title>
+ </head>
+ <body>
+ <main class="wrap">
+   <header>
+-    <div class="eyebrow">Transit PWA · LATEST</div>
+-    <h1>몇 시에 나가?</h1>
+-    <p>버스+지하철을 실제 환승 순서로 역산합니다. GPS 주변 정류장도 자동 비교합니다.</p>
++    <div class="header-top">
++      <div class="eyebrow">Transit PWA · LATEST</div>
++      <label class="lang-control" aria-label="Language">
++        <select id="langSelect">
++          <option value="ko">한국어</option>
++          <option value="ja">日本語</option>
++          <option value="en">English</option>
++        </select>
++      </label>
++    </div>
++    <h1 data-i18n="appTitle">몇 시에 나가?</h1>
++    <p data-i18n="appSubtitle">버스+지하철을 실제 환승 순서로 역산합니다. GPS 주변 정류장도 자동 비교합니다.</p>
+   </header>
+ 
+   <div class="mode-tabs mode-tabs-four">
+-    <button class="mode-tab active" data-mode="reverse">도착시간</button>
+-    <button class="mode-tab" data-mode="forward">출발시간</button>
+-    <button class="mode-tab" data-mode="first">첫차</button>
+-    <button class="mode-tab" data-mode="last">막차</button>
++    <button class="mode-tab active" data-mode="reverse" data-i18n="modeReverse">도착시간</button>
++    <button class="mode-tab" data-mode="forward" data-i18n="modeForward">출발시간</button>
++    <button class="mode-tab" data-mode="first" data-i18n="modeFirst">첫차</button>
++    <button class="mode-tab" data-mode="last" data-i18n="modeLast">막차</button>
+   </div>
+ 
+   <section class="card planner-card">
+     <div class="place-block">
+-      <div class="place-head"><span class="place-title">출발</span><button class="gps-mini" id="originGps">◎ 현재 위치</button></div>
++      <div class="place-head"><span class="place-title" data-i18n="origin">출발</span><button class="gps-mini" id="originGps" data-i18n="currentLocationButton">◎ 현재 위치</button></div>
+       <div class="autocomplete">
+-        <input id="originInput" autocomplete="off" placeholder="출발 예시) 판교역" />
++        <input id="originInput" autocomplete="off" placeholder="출발 예시) 판교역" data-i18n-placeholder="originPlaceholder" />
+         <div class="suggestions" id="originSuggestions"></div>
+       </div>
+-      <div class="selected-place" id="originSelected">선택 안 됨</div>
++      <div class="selected-place" id="originSelected" data-i18n="notSelected">선택 안 됨</div>
+     </div>
+ 
+-    <button class="swap-btn" id="swapBtn">⇅</button>
++    <button class="swap-btn" id="swapBtn" aria-label="Swap">⇅</button>
+ 
+     <div class="place-block">
+-      <div class="place-head"><span class="place-title">도착</span><button class="gps-mini" id="destinationGps">◎ 현재 위치</button></div>
++      <div class="place-head"><span class="place-title" data-i18n="destination">도착</span><button class="gps-mini" id="destinationGps" data-i18n="currentLocationButton">◎ 현재 위치</button></div>
+       <div class="autocomplete">
+-        <input id="destinationInput" autocomplete="off" placeholder="도착 예시) 서울역" />
++        <input id="destinationInput" autocomplete="off" placeholder="도착 예시) 서울역" data-i18n-placeholder="destinationPlaceholder" />
+         <div class="suggestions" id="destinationSuggestions"></div>
+       </div>
+-      <div class="selected-place" id="destinationSelected">선택 안 됨</div>
++      <div class="selected-place" id="destinationSelected" data-i18n="notSelected">선택 안 됨</div>
+     </div>
+ 
+     <div id="timeControl">
+       <div class="time-row">
+-        <label class="time-label" id="timeLabel">도착해야 하는 시간</label>
+-        <button class="now-btn" id="nowBtn" hidden>지금</button>
++        <label class="time-label" id="timeLabel" data-i18n="arriveTimeLabel">도착해야 하는 시간</label>
++        <button class="now-btn" id="nowBtn" hidden data-i18n="now">지금</button>
+       </div>
+       <input id="target" class="target-time" type="time" value="08:25" />
+     </div>
+-    <button id="planBtn" class="primary-btn">몇 시에 나가야 해?</button>
++    <button id="planBtn" class="primary-btn" data-i18n="planReverse">몇 시에 나가야 해?</button>
+   </section>
+ 
+   <section class="card result result-priority" id="resultCard" hidden>
+-    <div class="result-kicker" id="resultKicker">도착시간 역산</div>
++    <div class="result-kicker" id="resultKicker" data-i18n="resultReverse">도착시간 역산</div>
+     <div id="result"></div>
+   </section>
+ 
+-  <section class="ad-placeholder"><span>광고 영역</span><small>핵심 결과 확인 후 노출</small></section>
++  <section class="ad-placeholder"><span data-i18n="adArea">광고 영역</span><small data-i18n="adSub">핵심 결과 확인 후 노출</small></section>
+ 
+   <details class="debug-details">
+-    <summary>데이터 수집 상태</summary>
++    <summary data-i18n="dataStatus">데이터 수집 상태</summary>
+     <section class="card">
+-      <h2>전체 메타데이터</h2>
+-      <div id="metadataStatus" class="muted">확인 중…</div>
++      <h2 data-i18n="metadataTitle">전체 메타데이터</h2>
++      <div id="metadataStatus" class="muted" data-i18n="checking">확인 중…</div>
+       <code>SYNC_METADATA.bat</code>
+     </section>
+     <section class="card">
+-      <h2>실운행 Watchlist</h2>
+-      <div id="watchStatus" class="muted">확인 중…</div>
+-      <p class="muted">조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.</p>
++      <h2 data-i18n="watchTitle">실운행 Watchlist</h2>
++      <div id="watchStatus" class="muted" data-i18n="checking">확인 중…</div>
++      <p class="muted" data-i18n="watchDesc">조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.</p>
+     </section>
+     <section class="card">
+-      <h2>과거 이력</h2>
+-      <div id="historyStatus" class="muted">확인 중…</div>
++      <h2 data-i18n="historyTitle">과거 이력</h2>
++      <div id="historyStatus" class="muted" data-i18n="checking">확인 중…</div>
+     </section>
+   </details>
+ 
+   <footer>Latest · Full Metadata + Watchlist Collector</footer>
+ </main>
+-<script src="/static/app.js?v=141"></script>
++<script src="/static/app.js?v=152"></script>
+ </body>
+-</html>
+\ No newline at end of file
++</html>
