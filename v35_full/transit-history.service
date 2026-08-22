@@ -1,0 +1,16 @@
+[Unit]
+Description=Transit historical data maintainer
+After=network-online.target transit-collector.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/transit-pwa
+EnvironmentFile=-/home/ubuntu/transit-pwa/.env
+ExecStart=/home/ubuntu/transit-pwa/.venv/bin/python -m backend.history_maintainer
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target
