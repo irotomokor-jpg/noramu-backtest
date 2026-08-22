@@ -1,0 +1,9 @@
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -134,3 +134,6 @@
+ .header-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+ .lang-control select{border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;padding:7px 28px 7px 10px;font-size:12px;font-weight:800}
+ @media(max-width:420px){.header-top{align-items:flex-start}.lang-control select{font-size:11px}}
++
++/* v3.3 rail service class */
++.rail-type-chip{display:inline-flex;align-items:center;margin:0 6px 0 2px;padding:2px 7px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:11px;font-weight:800;vertical-align:1px;white-space:nowrap}
