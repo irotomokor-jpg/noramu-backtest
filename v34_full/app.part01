@@ -1,0 +1,100 @@
+function formatDuration(v){
+  const n=Math.max(0,Math.round(Number(v)||0));
+  const h=Math.floor(n/60),m=n%60;
+  if(state.lang==='ja') return h?`${h}時間${m?`${m}分`:''}`:`${m}分`;
+  if(state.lang==='en') return h?`${h}h${m?` ${m}m`:''}`:`${m}m`;
+  return h?`${h}시간${m?` ${m}분`:''}`:`${m}분`;
+}
+function railTypeLabel(v){
+  const raw=String(v||'').trim(); if(!raw)return '';
+  if(/특급|limited|特急/i.test(raw))return tr('serviceLimited');
+  if(/급행|express|急行/i.test(raw))return tr('serviceExpress');
+  if(/일반|보통|완행|local|普通/i.test(raw))return tr('serviceLocal');
+  return raw;
+}
+function railTypeChip(v){const x=railTypeLabel(v);return x?`<span class="rail-type-chip">${x}</span>`:'';}
+function applyLanguage(){
+  document.documentElement.lang=state.lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(I18N[state.lang]?.[k]||I18N.ko[k])el.textContent=tr(k);});
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{const k=el.dataset.i18nPlaceholder;el.placeholder=tr(k);});
+  const sel=$("#langSelect");if(sel)sel.value=state.lang;
+  syncSelected();setMode(state.mode);
+}
+
+
+async function api(url, options={}) {
+  const r=await fetch(url,options);
+  const text=await r.text();
+  let data;
+  try { data=text ? JSON.parse(text) : {}; }
+  catch (_) {
+    if(!r.ok) throw new Error(`HTTP ${r.status}: ${text || r.statusText}`);
+    throw new Error(`서버 응답 JSON 파싱 실패: ${text.slice(0,180)}`);
+  }
+  if(!r.ok) throw new Error(data.detail || JSON.stringify(data));
+  return data;
+}
+
+const state={origin:null,destination:null,mode:"reverse",departNow:false,timers:{},lang:(localStorage.getItem("transitLang")||"ko")};
+function typeLabel(t){return t==="bus"?tr("bus"):t==="subway"?tr("subway"):t==="coordinate"?tr("gps"):t;}
+function syncSelected(){
+  const selectedHtml=item=>{
+    const nm=displayPlace(item);
+    const meta=item.type==="bus"?[item.mobileNo,item.region].filter(Boolean).join(" · "):(item.route||"");
+    return `<span class="type-chip ${item.type}">${typeLabel(item.type)}</span>${nm}${meta?` · ${meta}`:""}`;
+  };
+  $("#originSelected").innerHTML=state.origin?selectedHtml(state.origin):tr("notSelected");
+  $("#destinationSelected").innerHTML=state.destination?selectedHtml(state.destination):tr("notSelected");
+  if(state.origin) $("#originInput").value=state.origin.type==="coordinate"?tr("currentLocation"):displayPlace(state.origin);
+  if(state.destination) $("#destinationInput").value=state.destination.type==="coordinate"?tr("currentLocation"):displayPlace(state.destination);
+}
+function renderSuggestions(box,items,onPick){
+  box.innerHTML="";
+  if(!items.length){box.innerHTML=`<div class="suggestion"><small>${tr('noResults')}</small></div>`;box.classList.add("open");return;}
+  items.forEach(item=>{
+    const el=document.createElement("div");el.className="suggestion";
+    const meta=item.type==="bus"?[item.mobileNo,item.region].filter(Boolean).join(" · "):(item.route||"");
+    el.innerHTML=`<b><span class="type-chip ${item.type}">${typeLabel(item.type)}</span>${displayPlace(item)}</b><small>${meta}</small>`;
+    el.onclick=()=>{onPick(item);box.classList.remove("open");};box.appendChild(el);
+  });box.classList.add("open");
+}
+function bindSearch(inputSel,boxSel,role){
+  const input=$(inputSel),box=$(boxSel);
+  input.addEventListener("input",()=>{
+    const q=input.value.trim();clearTimeout(state.timers[role]);
+
+    const selected = role==="origin" ? state.origin : state.destination;
+    if(selected && q !== String(displayPlace(selected)||"").trim() && q !== String(selected.name||"").trim()){
+      if(role==="origin") state.origin=null; else state.destination=null;
+      syncSelected();
+    }
+
+    if(!q){
+      if(role==="origin") state.origin=null; else state.destination=null;
+      syncSelected();
+      box.classList.remove("open");
+      return;
+    }
+    state.timers[role]=setTimeout(async()=>{
+      try{
+        const x=await api(`/api/search/places?q=${encodeURIComponent(q)}`);
+        renderSuggestions(box,x.items||[],item=>{
+          if(role==="origin")state.origin=item;else state.destination=item;
+          input.value=displayPlace(item);syncSelected();
+        });
+      }catch(e){box.innerHTML=`<div class="suggestion"><small>${e.message}</small></div>`;box.classList.add("open");}
+    },250);
+  });
+}
+bindSearch("#originInput","#originSuggestions","origin");
+bindSearch("#destinationInput","#destinationSuggestions","destination");
+
+$("#swapBtn").onclick=()=>{
+  [state.origin,state.destination]=[state.destination,state.origin];
+  syncSelected();
+};
+
+async function useGps(role){
+  if(!window.isSecureContext){
+    return alert(tr("secureGps"));
+  }
