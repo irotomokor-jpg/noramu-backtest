@@ -1,0 +1,43 @@
+{
+  "version": "US_RSI_TREND_COMPANION_V001",
+  "purpose": "SEPARATE_COMPANION_RESEARCH_NOT_TUNING_EXISTING_STRATEGIES",
+  "live_approval": false,
+  "order_mode": "NO_ORDERS",
+  "coverage": 1.0,
+  "variants": {
+    "STRICT_30_35": [
+      30.0,
+      35.0
+    ],
+    "MODERATE_35_40": [
+      35.0,
+      40.0
+    ]
+  },
+  "exit": "PLUS_1R_BE_THEN_2ATR_PEAK_TRAIL_MAX26_NO_FIXED_2R_CAP",
+  "decisions": [
+    {
+      "variant": "STRICT_30_35",
+      "research_survivor": false,
+      "trades_5bps": 11,
+      "pnl_5bps": -83.28432262732386,
+      "pf_5bps": 0.6521511503681946,
+      "pnl_20bps": -117.0567806210898,
+      "pf_20bps": 0.5450042297245259,
+      "h1_pnl": -17.716758224120223,
+      "july_pnl": -65.56756440320363
+    },
+    {
+      "variant": "MODERATE_35_40",
+      "research_survivor": false,
+      "trades_5bps": 39,
+      "pnl_5bps": -201.29726401849766,
+      "pf_5bps": 0.6939754424482633,
+      "pnl_20bps": -324.04892550646645,
+      "pf_20bps": 0.55695457595058,
+      "h1_pnl": -61.78299663290966,
+      "july_pnl": -139.514267385588
+    }
+  ],
+  "classification": "NO_COMPANION_SURVIVOR"
+}
