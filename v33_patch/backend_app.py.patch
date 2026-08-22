@@ -1,0 +1,98 @@
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -117,6 +117,31 @@
+     return out
+ 
+ 
++def _rail_service_type(row: dict) -> str | None:
++    """Best-effort train class extraction from timetable providers.
++
++    The KR rail XLSX stores this explicitly in rail_events.service_type. TAGO
++    deployments expose different field names, so inspect known aliases without
++    inventing a class when the provider omits it.
++    """
++    aliases = (
++        'serviceType', 'trainType', 'trainTypeNm', 'subwayTrainType',
++        'subwayTrainTypeNm', 'runType', 'runTypeNm', 'expressType',
++        'expressTypeNm', 'trainKind', 'trainKindNm',
++    )
++    for k in aliases:
++        v = str(row.get(k) or '').strip()
++        if v:
++            return v
++    for k in ('expressYn', 'expYn'):
++        v = str(row.get(k) or '').strip().upper()
++        if v in ('Y','1','TRUE'):
++            return '급행'
++        if v in ('N','0','FALSE'):
++            return '일반'
++    return None
++
++
+ def normalize_station(v):
+     return re.sub(r'\([^)]*\)', '', str(v or '')).replace('역', '').replace(' ', '')
+ 
+@@ -202,6 +227,8 @@
+             'runtimeMin': round(runtime / 60, 1),
+             'terminal': row.get('endSubwayStationNm'),
+             'direction': row.get('_direction'),
++            'serviceType': _rail_service_type(row),
++            'serviceTypeSource': 'TAGO' if _rail_service_type(row) else None,
+         })
+     return sorted(out, key=lambda x: x['departureSec'])
+ 
+@@ -702,12 +729,9 @@
+             merged.update(h)
+             merged['routeId'] = c['routeId']
+             merged['source'] = 'historical-arrivals'
+-            try:
+-                board_sec = h.get('medianSec') or db_hm_to_sec(h.get('originMedian'))
+-            except Exception:
+-                board_sec = c['latestBoardingSec']
+-            merged['recommendedBoardingSec'] = int(board_sec)
+-            merged['recommendedBoarding'] = db_sec_to_hm(int(board_sec), True)
++            board_sec = int(h.get('recommendedBoardingSec') or h.get('safeBoardingSec') or c['latestBoardingSec'])
++            merged['recommendedBoardingSec'] = board_sec
++            merged['recommendedBoarding'] = db_sec_to_hm(board_sec, True)
+         else:
+             merged['recommendedBoardingSec'] = c['latestBoardingSec']
+             merged['recommendedBoarding'] = c['latestBoarding']
+@@ -721,10 +745,7 @@
+         for h in history:
+             if h.get('routeName') not in seen and h.get('historyAvailable'):
+                 h = dict(h)
+-                try:
+-                    bsec = db_hm_to_sec(h.get('originMedian'))
+-                except Exception:
+-                    bsec = guess
++                bsec = int(h.get('recommendedBoardingSec') or h.get('safeBoardingSec') or guess)
+                 h['recommendedBoardingSec'] = bsec
+                 h['recommendedBoarding'] = db_sec_to_hm(bsec, True)
+                 h['estimatedGosaek'] = h.get('estimatedDestination')
+@@ -734,6 +755,7 @@
+     live_meta = attach_live_bus_arrivals(buses, deadline, 4)
+     buses = live_meta['candidates']
+     buses.sort(key=lambda x: (
++        not x.get('historyReliable', False),
+         not x.get('historyAvailable', False),
+         float(x.get('score', 999)),
+         -int(x.get('recommendedBoardingSec') or 0),
+@@ -762,7 +784,8 @@
+         'mode': 'arrive-by',
+         'target': target,
+         'railSource': source,
+-        'railPairing': 'train-no' if source == 'KR-rail-local-db' else 'TAGO direction+terminal+runtime',
++        'railPairing': 'train-no' if source == 'KR-rail-local-db' else 'TAGO scheduled departure/arrival pairing',
++        'railScheduleBasis': 'KR national rail timetable (train number + service type)' if source == 'KR-rail-local-db' else 'TAGO official station timetable',
+         'suinBundang': suin,
+         'shinbundang': shin,
+         'transferBufferMin': transfer_buffer_min,
+@@ -780,7 +803,7 @@
+         'realtimeRecommendedBus': live_recommended,
+         'watchRoutesAdded': watched.get('count', 0),
+         'gpsNearbyStops': gps_nearby,
+-        'plannerNote': '철도는 시간표를 역산하고, 버스는 과거 이력/노선 구조에 더해 공식 경기도 실시간 도착정보를 조회합니다. 실시간 버스는 실제 탑승 권장시각이 가까울 때만 환승 가능 여부 판단에 반영합니다.',
++        'plannerNote': '철도는 고정 시간표의 실제 출발·도착시각을 역산합니다. KR 표준 운행정보 DB가 적재되면 열차번호와 일반/급행/특급 등 운행유형까지 우선 사용하고, 미적재 시 TAGO 공식 역별 시간표를 사용합니다. 버스는 목표 시간대 ±20분 이력과 P80/P90 소요시간, 동일 차량 매칭을 우선하고 공식 경기도 실시간 도착정보를 결합합니다.',
+     }
+ 
+ 
