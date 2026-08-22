@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 RAW="https://raw.githubusercontent.com/irotomokor-jpg/noramu-backtest/main"
+CB="$(date +%s%N)"
 
 echo "=== Transit v3: reverse planner + GPS + proactive collector ==="
-curl -fsSL "$RAW/install_transit.sh" | bash
+curl -fsSL "$RAW/install_transit.sh?cb=$CB" | bash
 
 echo
 echo "=== HTTPS for browser GPS ==="
-curl -fsSL "$RAW/enable_https_ip.sh" | bash
+curl -fsSL "$RAW/enable_https_ip.sh?cb=$CB" | bash
 
 echo
 echo "=== FINAL STATUS ==="
