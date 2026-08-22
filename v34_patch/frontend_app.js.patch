@@ -1,0 +1,168 @@
+--- a/frontend/app.js	2026-08-22 10:15:46.591578523 +0000
++++ b/frontend/app.js	2026-08-22 10:38:21.506913089 +0000
+@@ -24,7 +24,7 @@
+     walkFromTo:"{from} → {to}",afterAlightWalk:"하차 후 도보 약 {n}분",busRide:"{route}번 탑승",busEstimate:"버스 구조 예상 약 {n}분",
+     currentToStop:"현재 위치 → {name}",subwayRide:"{from}역 → {to}역",subwayTo:"{to}역까지 지하철",
+     beforeTime:"{time} 이전",historyReliable:"동시간대 이력 {n}일",historyReference:"이력 {n}일 · 표본 부족(참고용)",p90Travel:"P90 {n}분",serviceLocal:"일반",serviceExpress:"급행",serviceLimited:"특급",serviceUnknown:"종별 미제공",
+-    langChanged:"언어가 변경되었습니다. 현재 결과는 다시 계산하면 선택한 언어로 표시됩니다."
++    langChanged:"언어가 변경되었습니다.",departNow:"지금 출발",liveBusPlan:"실시간 버스 기준 추천",scheduledRail:"시간표",railRealtime:"지하철 실시간",railRealtimeOptional:"실시간 미지원/미설정 구간은 공식 시간표 기준",arriveAt:"{time} 도착",boardAt:"{time} 탑승",recommendedNow:"지금 추천 경로"
+   },
+   ja:{
+@@ -49,7 +49,7 @@
+     walkFromTo:"{from} → {to}",afterAlightWalk:"降車後 徒歩約{n}分",busRide:"{route}番 乗車",busEstimate:"バス構造推定 約{n}分",
+     currentToStop:"現在地 → {name}",subwayRide:"{from}駅 → {to}駅",subwayTo:"{to}駅まで地下鉄",
+     beforeTime:"{time}以前",historyReliable:"同時間帯履歴 {n}日",historyReference:"履歴 {n}日・標本不足（参考）",p90Travel:"P90 {n}分",serviceLocal:"普通",serviceExpress:"急行",serviceLimited:"特急",serviceUnknown:"種別未提供",
+-    langChanged:"言語を変更しました。現在の結果は再検索すると選択した言語で表示されます。"
++    langChanged:"言語を変更しました。",departNow:"今すぐ出発",liveBusPlan:"リアルタイムバス基準の推奨",scheduledRail:"時刻表",railRealtime:"地下鉄リアルタイム",railRealtimeOptional:"リアルタイム非対応・未設定区間は公式時刻表基準",arriveAt:"{time} 到着",boardAt:"{time} 乗車",recommendedNow:"今のおすすめルート"
+   },
+   en:{
+@@ -74,9 +74,29 @@
+     walkFromTo:"{from} → {to}",afterAlightWalk:"Walk about {n} min after alighting",busRide:"Board bus {route}",busEstimate:"Bus structural estimate about {n} min",
+     currentToStop:"Current location → {name}",subwayRide:"{from} → {to}",subwayTo:"Subway to {to}",
+     beforeTime:"before {time}",historyReliable:"Same-time history: {n} days",historyReference:"History: {n} days · low sample (reference)",p90Travel:"P90 {n} min",serviceLocal:"Local",serviceExpress:"Express",serviceLimited:"Limited Express",serviceUnknown:"Service type unavailable",
+-    langChanged:"Language changed. Recalculate the current trip to render the result in the selected language."
++    langChanged:"Language changed.",departNow:"Leave now",liveBusPlan:"Recommended from live bus arrivals",scheduledRail:"Timetable",railRealtime:"Subway live",railRealtimeOptional:"Official timetable is used where live data is unavailable",arriveAt:"Arrive {time}",boardAt:"Board {time}",recommendedNow:"Recommended now"
+   }
+ };
++
++// Official KR rail foreign-name datasets are the source of truth. The app keeps
++// Korean provider names internally and changes only the display name. Unknown
++// stations intentionally fall back to Korean instead of fabricating a translation.
++const OFFICIAL_STATION_NAMES={
++  "고색":{ko:"고색",en:"Gosaek",ja:"コセク"},
++  "수원":{ko:"수원",en:"Suwon",ja:"スウォン"},
++  "정자":{ko:"정자",en:"Jeongja",ja:"チョンジャ"},
++  "판교":{ko:"판교(판교테크노밸리)",en:"Pangyo (Pangyo Techno Valley)",ja:"パンギョ（パンギョテクノバレー）"},
++  "강남":{ko:"강남",en:"Gangnam",ja:"カンナム"},
++  "양재":{ko:"양재",en:"Yangjae",ja:"ヤンジェ"},
++  "미금":{ko:"미금",en:"Migeum",ja:"ミグム"}
++};
++function stationKey(name){return String(name||"").replace(/\([^)]*\)/g,"").replace(/역$/,'').replace(/\s+/g,'').trim();}
++function displayStationName(name,type="subway"){
++  if(type!=="subway") return String(name||"");
++  const key=stationKey(name),row=OFFICIAL_STATION_NAMES[key];
++  return row?.[state?.lang]||row?.ko||String(name||"");
++}
++function displayPlace(item){return item?.type==="subway"?displayStationName(item.name,"subway"):String(item?.name||"");}
+ function tr(key,vars={}){let s=(I18N[state?.lang]||I18N.ko)[key]??I18N.ko[key]??key;return String(s).replace(/\{(\w+)\}/g,(_,k)=>vars[k]??"");}
+@@ -115,11 +135,18 @@
+   return data;
+ }
+ 
+-const state={origin:null,destination:null,mode:"reverse",timers:{},lang:(localStorage.getItem("transitLang")||"ko")};
++const state={origin:null,destination:null,mode:"reverse",departNow:false,timers:{},lang:(localStorage.getItem("transitLang")||"ko")};
+ function typeLabel(t){return t==="bus"?tr("bus"):t==="subway"?tr("subway"):t==="coordinate"?tr("gps"):t;}
+ function syncSelected(){
+-  $("#originSelected").innerHTML=state.origin?`<span class="type-chip ${state.origin.type}">${typeLabel(state.origin.type)}</span>${state.origin.label}` :tr("notSelected");
+-  $("#destinationSelected").innerHTML=state.destination?`<span class="type-chip ${state.destination.type}">${typeLabel(state.destination.type)}</span>${state.destination.label}` :tr("notSelected");
++  const selectedHtml=item=>{
++    const nm=displayPlace(item);
++    const meta=item.type==="bus"?[item.mobileNo,item.region].filter(Boolean).join(" · "):(item.route||"");
++    return `<span class="type-chip ${item.type}">${typeLabel(item.type)}</span>${nm}${meta?` · ${meta}`:""}`;
++  };
++  $("#originSelected").innerHTML=state.origin?selectedHtml(state.origin):tr("notSelected");
++  $("#destinationSelected").innerHTML=state.destination?selectedHtml(state.destination):tr("notSelected");
++  if(state.origin) $("#originInput").value=state.origin.type==="coordinate"?tr("currentLocation"):displayPlace(state.origin);
++  if(state.destination) $("#destinationInput").value=state.destination.type==="coordinate"?tr("currentLocation"):displayPlace(state.destination);
+ }
+@@ -127,7 +154,7 @@
+   items.forEach(item=>{
+     const el=document.createElement("div");el.className="suggestion";
+     const meta=item.type==="bus"?[item.mobileNo,item.region].filter(Boolean).join(" · "):(item.route||"");
+-    el.innerHTML=`<b><span class="type-chip ${item.type}">${typeLabel(item.type)}</span>${item.name}</b><small>${meta}</small>`;
++    el.innerHTML=`<b><span class="type-chip ${item.type}">${typeLabel(item.type)}</span>${displayPlace(item)}</b><small>${meta}</small>`;
+@@ -137,7 +164,7 @@
+     const q=input.value.trim();clearTimeout(state.timers[role]);
+ 
+     const selected = role==="origin" ? state.origin : state.destination;
+-    if(selected && q !== String(selected.name||"").trim()){
++    if(selected && q !== String(displayPlace(selected)||"").trim() && q !== String(selected.name||"").trim()){
+@@ -153,7 +180,7 @@
+         renderSuggestions(box,x.items||[],item=>{
+           if(role==="origin")state.origin=item;else state.destination=item;
+-          input.value=item.name;syncSelected();
++          input.value=displayPlace(item);syncSelected();
+@@ -164,7 +191,7 @@
+ $("#swapBtn").onclick=()=>{
+   [state.origin,state.destination]=[state.destination,state.origin];
+-  const oi=$("#originInput"),di=$("#destinationInput"),v=oi.value;oi.value=di.value;di.value=v;syncSelected();
++  syncSelected();
+ };
+@@ -200,7 +227,7 @@
+ function setMode(mode){
+-  state.mode=mode;
++  state.mode=mode; if(mode!=="forward") state.departNow=false;
+@@ -230,8 +257,10 @@
+ $("#nowBtn").onclick=()=>{
+-  const d=new Date();$("#target").value=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
++  const d=new Date();state.departNow=true;$("#target").value=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
++  $("#planBtn").click();
+ };
++$("#target").addEventListener("input",()=>{if(state.mode==="forward")state.departNow=false;});
+@@ -338,7 +367,7 @@
+-  push('finish','-',tr('arrived',{name:state.destination.name}),tr('fromOrigin',{name:state.origin.name}),`${state.lang==='ko'?'전체 구조 예상':state.lang==='ja'?'全体構造推定':'Whole-trip structural estimate'} ${formatDuration(c.totalMinutesEstimate)}`);
++  push('finish','-',tr('arrived',{name:displayPlace(state.destination)}),tr('fromOrigin',{name:displayPlace(state.origin)}),`${state.lang==='ko'?'전체 구조 예상':state.lang==='ja'?'全体構造推定':'Whole-trip structural estimate'} ${formatDuration(c.totalMinutesEstimate)}`);
+@@ -381,19 +410,19 @@
+-        `${badge("수인분당선")}${railTypeChip(suin.serviceType)}고색 → 정자`,
++        `${badge("수인분당선")}${railTypeChip(suin.serviceType)}${displayStationName('고색')} → ${displayStationName('정자')}`,
+@@
+-        `${badge("신분당선")}${railTypeChip(shin.serviceType)}정자 → 판교`,
++        `${badge("신분당선")}${railTypeChip(shin.serviceType)}${displayStationName('정자')} → ${displayStationName('판교')}`,
+@@
+-        tr('arrived',{name:state.destination.name}),
++        tr('arrived',{name:displayPlace(state.destination)}),
+@@
+-    <strong class="big">${state.origin.name} → ${state.destination.name}</strong>
++    <strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
+@@ -469,11 +498,30 @@
+ function renderForward(x){
+-  const rows=(x.busPatterns||[]).map(b=>{
+-    if(!b.samples)return `<div class="bus-candidate"><div class="route">${b.routeName}번</div><div class="hist">과거 기록 없음</div></div>`;
+-    return `<div class="bus-candidate"><div class="route">${b.routeName}번</div><div class="hist">이 시간대 중앙 ${b.median} · 80%범위 ${b.p10}~${b.p90} · ${b.samples}일</div></div>`;
+-  }).join("");
+-  $("#result").innerHTML=`<strong class="big">${x.depart} 출발 기준</strong>${rows}<div class="status-note">${x.message}</div>`;
++  const j=x.recommendedJourney;
++  if(!j){
++    const rows=(x.busPatterns||[]).map(b=>{
++      if(!b.samples)return `<div class="bus-candidate"><div class="route">${b.routeName}</div><div class="hist">${tr('noVehicle')}</div></div>`;
++      return `<div class="bus-candidate"><div class="route">${b.routeName}</div><div class="hist">${tr('historyReference',{n:b.samples})}</div></div>`;
++    }).join("");
++    $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="path-summary">${x.message}</div>${rows}<div class="status-note">${tr('railRealtimeOptional')}</div>`;
++    return;
++  }
++  const v=j.chosenVehicle||{},s=j.suinBundang||{},h=j.shinbundang||{};
++  const live=`${tr('live')} ${x.realtimeCheckedAt||'-'} · ${j.routeName} · ${tr('minutesLater',{n:v.etaMin??'-'})}${v.stopsAway!=null?` · ${tr('stopsAway',{n:v.stopsAway})}`:''}`;
++  const timeline=`<div class="timeline-v2">
++    ${timelineRow('bus',j.boardTime,`${badge('버스')}${j.routeName} ${tr('boardAt',{time:j.boardTime})}`,`${j.estimatedGosaek} · ${displayStationName('고색')}`,`${tr('minutes',{n:j.travelMedianMin||'-'})} · ${live}`)}
++    ${timelineRow('suin',s.departure,`${badge('수인분당선')}${railTypeChip(s.serviceType)}${displayStationName('고색')} → ${displayStationName('정자')}`,`${s.arrival} · ${tr('scheduledRail')}`,tr('minutes',{n:s.runtimeMin||'-'}))}
++    ${timelineRow('shin',h.departure,`${badge('신분당선')}${railTypeChip(h.serviceType)}${displayStationName('정자')} → ${displayStationName('판교')}`,`${h.arrival} · ${tr('scheduledRail')}`,tr('minutes',{n:h.runtimeMin||'-'}))}
++    ${timelineRow('finish',j.finalArrival,tr('arrived',{name:displayPlace(state.destination)}),`${tr('finalArrival')} ${j.finalArrival}`,`${tr('totalAbout')} ${formatDuration(j.totalMinutesEstimate)}`)}
++  </div>`;
++  const alternatives=(x.journeys||[]).slice(1,4).map(a=>`<div class="bus-candidate"><div class="route">${a.routeName} · ${tr('minutesLater',{n:a.chosenVehicle?.etaMin??'-'})}</div><div class="hist">${a.boardTime} → ${a.finalArrival} · ${formatDuration(a.totalMinutesEstimate)}</div></div>`).join('');
++  $("#result").innerHTML=`
++    <strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
++    <div class="path-summary"><b>${x.requestedNow?tr('recommendedNow'):tr('liveBusPlan')}</b> · ${x.depart} ${x.requestedNow?tr('departNow'):''} · ${tr('finalArrival')} <b>${j.finalArrival}</b> · ${tr('totalAbout')} <b>${formatDuration(j.totalMinutesEstimate)}</b></div>
++    ${timeline}
++    ${alternatives?`<h2>${tr('busCandidates')}</h2>${alternatives}`:''}
++    <div class="status-note">${x.message}<br>${tr('railRealtimeOptional')}<br>Rail: ${j.railScheduleBasis||j.railSource||'-'}</div>`;
+ }
+@@ -508,7 +556,7 @@
+-      renderForward(await api(`/api/planner/forward-pangyo?depart=${encodeURIComponent(t)}&origin_station_id=${encodeURIComponent(state.origin.id||"")}`));
++      renderForward(await api(`/api/planner/forward-pangyo?depart=${encodeURIComponent(t)}&origin_station_id=${encodeURIComponent(state.origin.id||"")}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}&now=${state.departNow?'true':'false'}`));
+@@ -519,15 +567,15 @@
+-      $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong>
++      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
+@@
+-      $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong><div class="status-note">${r.path.stations.join(" → ")}</div>`;
++      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="status-note">${r.path.stations.join(" → ")}</div>`;
+@@
+-      $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong><div class="status-note">${r.message||tr('noRoute')}</div>`;
++      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="status-note">${r.message||tr('noRoute')}</div>`;
+@@ -541,6 +589,7 @@
+     applyLanguage();
+     if(!$("#resultCard").hidden && state.origin && state.destination){
+       $("#result").innerHTML=`<div class="status-note">${tr('langChanged')}</div>`;
++      setTimeout(()=>$("#planBtn").click(),0);
+     }
+   });
+ }
