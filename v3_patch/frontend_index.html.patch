@@ -1,0 +1,46 @@
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+   <meta name="theme-color" content="#111827" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+-  <link rel="stylesheet" href="/static/style.css?v=120" />
++  <link rel="stylesheet" href="/static/style.css?v=140" />
+   <title>몇 시에 나가?</title>
+ </head>
+ <body>
+@@ -13,7 +13,7 @@
+   <header>
+     <div class="eyebrow">Transit PWA · LATEST</div>
+     <h1>몇 시에 나가?</h1>
+-    <p>정방향과 도착시간 역산을 분리했습니다.</p>
++    <p>버스+지하철을 실제 환승 순서로 역산합니다. GPS 주변 정류장도 자동 비교합니다.</p>
+   </header>
+ 
+   <div class="mode-tabs mode-tabs-four">
+@@ -49,7 +49,7 @@
+         <label class="time-label" id="timeLabel">도착해야 하는 시간</label>
+         <button class="now-btn" id="nowBtn" hidden>지금</button>
+       </div>
+-      <input id="target" class="target-time" type="time" value="08:22" />
++      <input id="target" class="target-time" type="time" value="08:25" />
+     </div>
+     <button id="planBtn" class="primary-btn">몇 시에 나가야 해?</button>
+   </section>
+@@ -71,7 +71,7 @@
+     <section class="card">
+       <h2>실운행 Watchlist</h2>
+       <div id="watchStatus" class="muted">확인 중…</div>
+-      <p class="muted">앱에서 검색된 경로의 버스 노선이 자동 등록됩니다. 수집기는 API 안전한도 안에서 반복 관측합니다.</p>
++      <p class="muted">조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.</p>
+     </section>
+     <section class="card">
+       <h2>과거 이력</h2>
+@@ -81,6 +81,6 @@
+ 
+   <footer>Latest · Full Metadata + Watchlist Collector</footer>
+ </main>
+-<script src="/static/app.js?v=120"></script>
++<script src="/static/app.js?v=140"></script>
+ </body>
+ </html>
