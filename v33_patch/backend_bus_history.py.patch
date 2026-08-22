@@ -1,0 +1,145 @@
+--- a/backend/bus_history.py
++++ b/backend/bus_history.py
+@@ -121,12 +121,14 @@
+     }
+ 
+ def paired_trip_stats(route_name: str, origin_station: str, destination_station: str,
+-                      center_sec: int, window_min: int = 45,
++                      center_sec: int, window_min: int = 20,
+                       day_type: str = "weekday") -> dict[str, Any]:
+     """
+-    Pair each day's origin run nearest center_sec to the first destination arrival
+-    after it, max 120 min. Vehicle numbers improve this later; current data may
+-    not have them, so pairing is conservative by date+time order.
++    Pair one origin/destination observation per service date around the requested
++    clock time. If a vehicle identifier exists, require the same vehicle at the
++    destination; never silently fall back to another vehicle. For legacy rows
++    without vehicle identifiers, pair only identifier-less rows and use a tighter
++    10~75 minute runtime guard.
+     """
+     with connect() as con:
+         rows = con.execute(
+@@ -144,24 +146,28 @@
+         by_date[r["service_date"]][key].append((int(r["arrival_sec"]), r["vehicle_no"]))
+ 
+     pairs = []
++    matched_vehicle = 0
++    legacy_pairs = 0
+     for d, g in by_date.items():
+         origins = [x for x in g["o"] if abs(x[0]-center_sec) <= window_min*60]
+         if not origins:
+             continue
+         o = min(origins, key=lambda x: abs(x[0]-center_sec))
+-        # vehicle match first if available
+-        ds = []
+         if o[1]:
+-            ds = [x for x in g["d"] if x[1] == o[1] and 0 < x[0]-o[0] <= 7200]
+-        if not ds:
+-            ds = [x for x in g["d"] if 0 < x[0]-o[0] <= 7200]
+-        if not ds:
+-            continue
++            ds = [x for x in g["d"] if x[1] == o[1] and 10*60 <= x[0]-o[0] <= 75*60]
++            if not ds:
++                continue
++            matched_vehicle += 1
++        else:
++            ds = [x for x in g["d"] if not x[1] and 10*60 <= x[0]-o[0] <= 75*60]
++            if not ds:
++                continue
++            legacy_pairs += 1
+         dest = min(ds, key=lambda x: x[0])
+         pairs.append((d, o[0], dest[0], dest[0]-o[0]))
+ 
+     if not pairs:
+-        return {"routeName":route_name,"samples":0}
++        return {"routeName":route_name,"samples":0,"matchedVehicleSamples":0,"legacySamples":0}
+ 
+     travel = [x[3] for x in pairs]
+     origin = [x[1] for x in pairs]
+@@ -169,37 +175,66 @@
+     return {
+         "routeName": route_name,
+         "samples": len(pairs),
++        "matchedVehicleSamples": matched_vehicle,
++        "legacySamples": legacy_pairs,
+         "originMedian": sec_to_hm(int(statistics.median(origin)), True),
+         "destinationMedian": sec_to_hm(int(statistics.median(dest)), True),
+         "travelMedianMin": round(statistics.median(travel)/60,1),
++        "travelP80Min": round(percentile(travel,.80)/60,1),
+         "travelP90Min": round(percentile(travel,.90)/60,1),
+     }
+ 
+ def rank_for_deadline(routes: list[str], origin_station: str, destination_station: str,
+                       destination_deadline_sec: int, guess_origin_sec: int,
+                       day_type: str = "weekday") -> list[dict[str,Any]]:
++    """Rank buses for a rail-connection deadline using same-time historical runs.
++
++    A history recommendation is considered reliable only with >=3 paired service
++    dates. The safe boarding cutoff is derived from P90 observed travel time, not
++    from an unrelated historical clock time. A typical bus time near that cutoff
++    is exposed separately when enough station observations exist.
++    """
+     out = []
+     for route in routes:
+-        p = station_pattern(route, origin_station, guess_origin_sec, 60, day_type)
+         trip = paired_trip_stats(route, origin_station, destination_station,
+-                                 guess_origin_sec, 60, day_type)
+-        samples = min(p.get("samples",0), trip.get("samples",0))
++                                 guess_origin_sec, 20, day_type)
++        samples = int(trip.get("samples",0) or 0)
+         if samples:
+-            med_origin = p.get("medianSec")
+-            # Estimate destination from each route's median travel
+-            travel = trip["travelMedianMin"]*60
+-            est_dest = int(med_origin + travel)
++            p90_min = float(trip.get("travelP90Min") or trip.get("travelMedianMin") or 0)
++            safe_board = int(destination_deadline_sec - p90_min*60)
++            p = station_pattern(route, origin_station, safe_board, 20, day_type)
++            typical_sec = p.get("medianSec") if int(p.get("samples",0) or 0) >= 3 else None
++            # A typical arrival after the safe cutoff is not a valid recommendation.
++            if typical_sec is not None and int(typical_sec) > safe_board + 90:
++                typical_sec = None
++            recommended = int(typical_sec) if typical_sec is not None else safe_board
++            med_travel = float(trip.get("travelMedianMin") or p90_min)
++            est_dest = int(recommended + med_travel*60)
+             slack = destination_deadline_sec - est_dest
++            reliable = samples >= 3
+             out.append({
+                 "routeName": route,
+                 "historyAvailable": True,
++                "historyReliable": reliable,
++                "historyQuality": "reliable" if reliable else "reference-only",
+                 "samples": samples,
++                "matchedVehicleSamples": int(trip.get("matchedVehicleSamples",0) or 0),
++                "legacySamples": int(trip.get("legacySamples",0) or 0),
++                "historyWindowMin": 20,
+                 "originMedian": p.get("median"),
+                 "originP10": p.get("p10"),
+                 "originP90": p.get("p90"),
+                 "arrivalSpreadMin": p.get("spreadMin"),
+                 "travelMedianMin": trip.get("travelMedianMin"),
++                "travelP80Min": trip.get("travelP80Min"),
+                 "travelP90Min": trip.get("travelP90Min"),
++                "safeBoardingSec": safe_board,
++                "safeBoarding": sec_to_hm(safe_board, True),
++                "typicalBoardingSec": int(typical_sec) if typical_sec is not None else None,
++                "typicalBoarding": sec_to_hm(int(typical_sec), True) if typical_sec is not None else None,
++                "recommendedBoardingSec": recommended,
++                "recommendedBoarding": sec_to_hm(recommended, True),
++                "recommendedBoardingIsCutoff": typical_sec is None,
+                 "estimatedDestination": sec_to_hm(est_dest, True),
+                 "deadlineSlackMin": round(slack/60,1),
+                 "meetsMedianDeadline": slack >= 0,
+@@ -208,10 +243,11 @@
+             out.append({
+                 "routeName": route,
+                 "historyAvailable": False,
++                "historyReliable": False,
+                 "samples": 0,
+             })
+-    # history routes meeting deadline first; more slack and samples preferred
+     return sorted(out, key=lambda x: (
++        not x.get("historyReliable",False),
+         not x.get("historyAvailable",False),
+         not x.get("meetsMedianDeadline",False),
+         -x.get("samples",0),
