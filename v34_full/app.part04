@@ -1,0 +1,100 @@
+  const slackText=x.goalSlackMin>=0?tr('slack',{n:x.goalSlackMin}):tr('late',{n:Math.abs(x.goalSlackMin)});
+  const timeline = `
+    <div class="timeline-v2">
+      ${access}
+      ${timelineRow(
+        "bus", board,
+        `${badge("버스")}${best.routeName?tr('busRide',{route:best.routeName}):tr('bus')}`,
+        `${busDest} · ${best.transferBusStationName||"고색역·고색초교"}`,
+        `${tr('minutes',{n:best.travelMedianMin||'-'})} · ${tr('busStops',{n:best.busStops??'-'})}`
+      )}
+      ${timelineRow(
+        "suin", suin.departure,
+        `${badge("수인분당선")}${railTypeChip(suin.serviceType)}${displayStationName('고색')} → ${displayStationName('정자')}`,
+        `${suin.arrival} · ${tr('suin')}${suin.terminal?` · ${suin.terminal}행`:''}`,
+        tr('minutes',{n:suin.runtimeMin||'-'})
+      )}
+      ${timelineRow(
+        "shin", shin.departure,
+        `${badge("신분당선")}${railTypeChip(shin.serviceType)}${displayStationName('정자')} → ${displayStationName('판교')}`,
+        `${shin.arrival} · ${tr('shin')}${shin.terminal?` · ${shin.terminal}행`:''}`,
+        tr('minutes',{n:shin.runtimeMin||'-'})
+      )}
+      ${timelineRow(
+        "finish", x.finalArrival||shin.arrival,
+        tr('arrived',{name:displayPlace(state.destination)}),
+        `${x.target} · ${slackText}`,
+        `${tr('totalAbout')} ${formatDuration(x.totalMinutesEstimate)}`
+      )}
+    </div>`;
+
+  const liveRec=x.realtimeRecommendedBus;
+  const liveVeh=((liveRec?.liveArrival||{}).vehicles||[])[0];
+  const liveBanner=liveRec&&liveVeh?`<div class="live-recommend"><b>${tr('liveTakeNow')}</b> · ${liveRec.routeName}${state.lang==='ko'?'번':''} · ${tr('minutesLater',{n:liveVeh.etaMin??'-'})} · ${tr('targetConnection')}</div>`:'';
+  $("#result").innerHTML=`
+    <strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
+    <div class="path-summary"><b>${tr('arriveBySummary',{target:x.target})}</b> ${tr('recommendedLeave')} <b>${x.recommendedLeaveTime||board}</b> · ${tr('finalArrival')} <b>${x.finalArrival||shin.arrival}</b> · ${tr('totalAbout')} <b>${formatDuration(x.totalMinutesEstimate)}</b> · <b>${slackText}</b></div>
+    ${liveBanner}
+    ${timeline}
+    <h2>${tr('busCandidates')}</h2>
+    ${buses.length?buses.map(busCandidateHtml).join(""):`<div class="warning-note">${tr('noBusCandidate')}</div>`}
+    <div class="status-note">${x.plannerNote||""}<br>${tr('live')}: ${x.realtimeCheckedAt||'-'} · Rail: ${x.railSource} · ${x.railScheduleBasis||x.railPairing||"-"}</div>`;
+}
+
+
+function renderFirstLast(x){
+  const s=x.suinBundang,h=x.shinbundang;
+  const title=x.criterion==="first" ? "첫차 기준" : "막차 기준";
+  const busWindows=(x.busServiceWindows||[]).map(b=>`
+    <div class="service-window">
+      <div class="route">${badge("버스")}${b.routeName}번</div>
+      <div class="times">
+        와우지구 추정 첫차 ${b.estimatedWowFirst||"-"} · 추정 막차 ${b.estimatedWowLast||"-"}<br>
+        공식 기·종점 첫차 ${b.officialFirstTerminal||"-"} · 막차 ${b.officialLastTerminal||"-"}
+        ${b.estimatedGosaekTravelMin!=null?`<br>고색까지 구조상 약 ${b.estimatedGosaekTravelMin}분`:""}
+      </div>
+    </div>`).join("");
+
+  const timeline = `
+    <div class="timeline-v2">
+      ${timelineRow(
+        "bus",
+        x.gosaekPlatformDeadline || "-",
+        `와우지구 출발 준비`,
+        `${badge("버스")}버스 탑승`,
+        `고색역 승강장 ${x.gosaekPlatformDeadline}까지 도착 필요`
+      )}
+      ${timelineRow(
+        "suin",
+        s.departure,
+        `${badge("수인분당선")}고색역 출발`,
+        `${s.arrival} 정자역 도착`,
+        `${s.serviceType||s.terminal||""}`
+      )}
+      ${timelineRow(
+        "shin",
+        h.departure,
+        `${badge("신분당선")}정자역 출발`,
+        `${h.arrival} 판교역 도착`,
+        `${x.criterion==="first"?"가장 이른 연결":"가장 늦은 연결"}`
+      )}
+      ${timelineRow(
+        "finish",
+        x.finalArrival,
+        `판교역 도착`,
+        `${x.criterion==="first"?"첫차 기준 최종 도착":"막차 기준 최종 도착"}`,
+        `철도 데이터: ${x.railSource}`
+      )}
+    </div>`;
+
+  $("#result").innerHTML=`
+    <strong class="big">${title} · 와우지구 → 판교역</strong>
+    <div class="path-summary">${x.criterion==="first"?"가장 이른 최종 도착이 가능한 연결":"서비스 종료 전에 가능한 가장 늦은 연결"}을 찾았습니다.</div>
+    ${timeline}
+    <h2>버스 첫차·막차 운행창</h2>
+    ${busWindows || '<div class="warning-note">버스 운행창을 찾지 못했습니다.</div>'}
+    <div class="warning-note">${x.busNote}</div>
+    <div class="status-note">철도 데이터: ${x.railSource}<br>시간표 매칭: ${x.railPairing}</div>`;
+}
+
+function renderForward(x){
