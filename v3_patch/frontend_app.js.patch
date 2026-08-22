@@ -1,0 +1,187 @@
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -65,14 +65,35 @@
+   const oi=$("#originInput"),di=$("#destinationInput"),v=oi.value;oi.value=di.value;di.value=v;syncSelected();
+ };
+ 
+-function useGps(role){
+-  if(!navigator.geolocation)return alert("위치 기능을 지원하지 않습니다.");
+-  navigator.geolocation.getCurrentPosition(pos=>{
+-    const lat=pos.coords.latitude,lon=pos.coords.longitude;
+-    const item={type:"coordinate",id:`${lat.toFixed(6)},${lon.toFixed(6)}`,name:"현재 위치",label:`현재 위치 · ${lat.toFixed(5)}, ${lon.toFixed(5)}`,lat,lon};
+-    if(role==="origin"){state.origin=item;$("#originInput").value="현재 위치";}else{state.destination=item;$("#destinationInput").value="현재 위치";}
+-    syncSelected();
+-  },()=>alert("위치 권한/정보를 확인할 수 없습니다."),{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
++async function useGps(role){
++  if(!window.isSecureContext){
++    return alert("현재 위치는 HTTPS에서만 사용할 수 있습니다. HTTPS 주소로 접속한 뒤 다시 눌러주세요.");
++  }
++  if(!navigator.geolocation)return alert("이 브라우저는 위치 기능을 지원하지 않습니다.");
++  const btn=role==="origin"?$("#originGps"):$("#destinationGps");
++  const old=btn.textContent;btn.textContent="위치 확인 중…";btn.disabled=true;
++  navigator.geolocation.getCurrentPosition(async pos=>{
++    try{
++      const lat=pos.coords.latitude,lon=pos.coords.longitude;
++      let nearby=[];
++      try{
++        const x=await api(`/api/nearby/bus-stations?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&limit=6&watch=true`);
++        nearby=x.items||[];
++      }catch(e){ console.warn("nearby stop lookup failed",e); }
++      const nearest=nearby[0];
++      const item={
++        type:"coordinate",id:`${lat.toFixed(6)},${lon.toFixed(6)}`,name:"현재 위치",
++        label:nearest?`현재 위치 · ${nearest.name} 약 ${Math.round(nearest.distanceM||0)}m`:`현재 위치 · ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
++        lat,lon,accuracy:pos.coords.accuracy,nearbyStops:nearby
++      };
++      if(role==="origin"){state.origin=item;$("#originInput").value="현재 위치";}else{state.destination=item;$("#destinationInput").value="현재 위치";}
++      syncSelected();
++    }finally{btn.textContent=old;btn.disabled=false;}
++  },err=>{
++    btn.textContent=old;btn.disabled=false;
++    const msg=err.code===1?"위치 권한이 거부됐습니다. 브라우저 사이트 권한에서 위치를 허용해 주세요.":err.code===3?"GPS 확인 시간이 초과됐습니다. 다시 시도해 주세요.":"현재 위치를 확인할 수 없습니다.";
++    alert(msg);
++  },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+ }
+ $("#originGps").onclick=()=>useGps("origin");$("#destinationGps").onclick=()=>useGps("destination");
+ 
+@@ -131,7 +152,7 @@
+     <div class="timeline-row ${kind}">
+       <div class="timeline-timebox">
+         <div class="clock">${timeText || "-"}</div>
+-        <div class="mini">${kind==="bus"?"버스":kind==="suin"?"1차 철도":kind==="shin"?"2차 철도":"도착"}</div>
++        <div class="mini">${kind==="walk"?"도보":kind==="bus"?"버스":kind==="suin"?"1차 철도":kind==="shin"?"2차 철도":"도착"}</div>
+       </div>
+       <div class="timeline-track">
+         <div class="shaft"></div>
+@@ -147,66 +168,65 @@
+ 
+ 
+ function busCandidateHtml(b,i){
+-  if(!b.historyAvailable){
+-    return `<div class="bus-candidate">
+-      <div class="route">${badge("버스")}${b.routeName}번</div>
+-      <div class="hist">과거 도착기록 없음 · 실제 시간대 패턴 연결 대기</div>
+-    </div>`;
+-  }
++  const board=b.recommendedBoarding||b.latestBoarding||b.originMedian||"-";
++  const dest=b.estimatedGosaek||b.estimatedDestination||"-";
++  const walk=b.accessWalkMinutes?` · 정류장까지 도보 ${b.accessWalkMinutes}분`:"";
++  const stop=b.accessStop?`<br>GPS 기준 ${b.accessStop.name} (${Math.round(b.accessDistanceM||0)}m)`:"";
++  const hist=b.historyAvailable
++    ? `과거 이력 ${b.samples||0}일 · 80% 도착범위 ${b.originP10||"-"}~${b.originP90||"-"}`
++    : `노선 구조·공식 배차간격 기반 추정${b.headway?.minHeadway?` · 배차 ${b.headway.minHeadway}~${b.headway.maxHeadway}분`:""}`;
+   return `<div class="bus-candidate ${i===0?"best":""}">
+     <div class="route">${badge("버스")}${b.routeName}번 ${i===0?"· 추천":""}</div>
+-    <div class="hist">
+-      와우지구 중앙 ${b.originMedian} · 80%범위 ${b.originP10}~${b.originP90}<br>
+-      고색까지 중앙 ${b.travelMedianMin}분 · 예상 고색 ${b.estimatedDestination}<br>
+-      승강장 마감 대비 ${b.deadlineSlackMin}분 여유 · 표본 ${b.samples}일
+-    </div>
++    <div class="hist"><b>${board} 탑승</b> → ${dest} 고색 도착 예상 · 약 ${b.travelMedianMin||"-"}분${walk}${stop}<br>${hist}</div>
+   </div>`;
+ }
+ 
+ function renderReverse(x){
+   const shin=x.shinbundang,suin=x.suinBundang;
+   const buses=x.busCandidates||[];
+-
++  const best=x.recommendedBus||buses[0]||{};
++  const board=best.recommendedBoarding||best.latestBoarding||"-";
++  const busDest=best.estimatedGosaek||best.estimatedDestination||x.gosaekPlatformDeadline||"-";
++  const access=best.accessWalkMinutes?timelineRow(
++    "walk",x.recommendedLeaveTime||"-",`현재 위치에서 출발`,`${best.accessStop?.name||"가까운 정류장"}까지 도보`,`${best.accessWalkMinutes}분 · 약 ${Math.round(best.accessDistanceM||0)}m`
++  ):"";
+   const timeline = `
+     <div class="timeline-v2">
++      ${access}
+       ${timelineRow(
+-        "bus",
+-        x.gosaekPlatformDeadline || "-",
+-        `와우지구 출발 준비`,
+-        `${badge("버스")}46번 / 1007번 / 700-2번 중 선택`,
+-        `고색역 승강장에 <b>${x.gosaekPlatformDeadline}</b>까지 도착 필요`
++        "bus", board,
++        `${badge("버스")}${best.routeName?best.routeName+"번":"버스"} 탑승`,
++        `${busDest} ${best.transferBusStationName||"고색역·고색초교"} 도착 예상`,
++        `버스 약 ${best.travelMedianMin||"-"}분 · 고색역 승강장 ${x.gosaekPlatformDeadline}까지 진입`
+       )}
+       ${timelineRow(
+-        "suin",
+-        suin.departure,
++        "suin", suin.departure,
+         `${badge("수인분당선")}고색역 출발`,
+         `${suin.arrival} 정자역 도착`,
+-        `${suin.serviceType||suin.terminal||""}`
++        `약 ${suin.runtimeMin||"-"}분 · ${suin.serviceType||suin.terminal||""}`
+       )}
+       ${timelineRow(
+-        "shin",
+-        shin.departure,
++        "shin", shin.departure,
+         `${badge("신분당선")}정자역 출발`,
+         `${shin.arrival} 판교역 도착`,
+-        `환승 여유 ${x.transferBufferMin}분`
++        `약 ${shin.runtimeMin||"-"}분 · 환승 여유 최소 ${x.transferBufferMin}분`
+       )}
+       ${timelineRow(
+-        "finish",
+-        shin.arrival,
++        "finish", x.finalArrival||shin.arrival,
+         `판교역 도착`,
+-        `목표 ${x.target} 이전 도착`,
+-        `도착시간 기준으로 계산했지만 화면은 실제 이동 순서대로 표시`
++        `목표 ${x.target} · ${x.goalSlackMin>=0?`${x.goalSlackMin}분 여유`:`${Math.abs(x.goalSlackMin)}분 초과`}`,
++        `총 예상 ${x.totalMinutesEstimate??"-"}분`
+       )}
+     </div>`;
+ 
+   $("#result").innerHTML=`
+-    <strong class="big">${x.target}까지 판교역</strong>
+-    <div class="path-summary">역산 결과이지만 보기 쉽게 <b>출발 → 도착</b> 순서로 정렬했습니다.</div>
++    <strong class="big">${x.recommendedLeaveTime||board} 출발 → ${x.finalArrival||shin.arrival} 판교 도착</strong>
++    <div class="path-summary"><b>${x.target}까지 도착</b> 기준 역산 · 총 약 <b>${x.totalMinutesEstimate??"-"}분</b> · 목표 대비 <b>${x.goalSlackMin>=0?`${x.goalSlackMin}분 여유`:`${Math.abs(x.goalSlackMin)}분 초과`}</b></div>
+     ${timeline}
+-    <h2>버스 후보 · 과거 운행기록 기준</h2>
+-    ${buses.map(busCandidateHtml).join("")}
+-    ${!x.busHistoryReady?'<div class="warning-note">지하철은 시간표 기준으로 계산됐고, 버스는 과거도착 DB 연결 전 상태입니다. 모든 정류장/노선의 실운행 이력이 쌓이면 이 시간대에 가장 안정적인 버스를 추천합니다.</div>':""}
+-    <div class="status-note">철도 데이터: ${x.railSource}<br>시간표 매칭: ${x.railPairing||"-"}</div>`;
++    <h2>버스 후보</h2>
++    ${buses.length?buses.map(busCandidateHtml).join(""):'<div class="warning-note">고색역으로 연결되는 버스 후보를 아직 찾지 못했습니다.</div>'}
++    ${!x.busHistoryReady?'<div class="warning-note">버스의 정확한 특정 시각 도착 이력은 아직 축적 중입니다. 지금은 노선 구조와 공식 배차간격으로 마지막 탑승 가능 시각을 계산하며, 이력이 쌓이면 성공확률 기준으로 자동 교체됩니다.</div>':""}
++    <div class="status-note">${x.plannerNote||""}<br>철도 데이터: ${x.railSource} · ${x.railPairing||"-"}</div>`;
+ }
+ 
+ 
+@@ -287,12 +307,15 @@
+   showLoading();
+   const t=$("#target").value||"08:22";
+   try{
+-    const isWowPangyo =
+-      state.origin.type==="bus" && state.origin.name.includes("와우지구") &&
+-      state.destination.type==="subway" && state.destination.name.includes("판교");
++    const isPangyo = state.destination.type==="subway" && state.destination.name.includes("판교");
++    const gpsNearWow = state.origin.type==="coordinate" && (state.origin.nearbyStops||[]).some(s=>String(s.name||"").includes("와우지구"));
++    const isWowPangyo = isPangyo && ((state.origin.type==="bus" && state.origin.name.includes("와우지구")) || gpsNearWow);
+     if(isWowPangyo && state.mode==="reverse"){
++      const extra=state.origin.type==="coordinate"
++        ? `&origin_lat=${encodeURIComponent(state.origin.lat)}&origin_lon=${encodeURIComponent(state.origin.lon)}`
++        : `&origin_station_id=${encodeURIComponent(state.origin.id||"")}`;
+       renderReverse(await api(
+-        `/api/planner/reverse-pangyo?target=${encodeURIComponent(t)}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}&origin_station_id=${encodeURIComponent(state.origin.id||"")}`
++        `/api/planner/reverse-pangyo?target=${encodeURIComponent(t)}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}${extra}`
+       ));
+     }else if(isWowPangyo && state.mode==="forward"){
+       renderForward(await api(`/api/planner/forward-pangyo?depart=${encodeURIComponent(t)}&origin_station_id=${encodeURIComponent(state.origin.id||"")}`));
+@@ -302,8 +325,11 @@
+       const r=await genericRoute();
+       if(r.ok && r.candidates && r.candidates.length){
+         const c=r.candidates[0];
++        const access=c.accessStop?`현재 위치 → ${c.accessStop.name} 도보 ${c.accessWalkMinutes||"-"}분 → `:"";
++        const egress=c.egressStop?` → ${c.egressStop.name} 하차 후 도보 ${c.egressWalkMinutes||"-"}분`:"";
+         $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong>
+-        <div class="status-note">무료 자체 경로 후보: ${c.routeName||""} ${c.transferSubwayStation?`→ ${c.transferSubwayStation}역 환승`:""} · 구조예상 ${c.totalMinutesEstimate||"-"}분</div>`;
++        <div class="path-summary">GPS를 사용하면 가까운 정류장을 여러 개 비교해 전체 이동시간이 가장 짧은 승차 정류장을 자동 선택합니다.</div>
++        <div class="status-note">${access}${c.routeName?`${c.routeName}번`:""} ${c.transferSubwayStation?`→ ${c.transferSubwayStation}역 환승`:""}${egress}<br>구조 예상 ${c.totalMinutesEstimate||"-"}분</div>`;
+       }else if(r.ok && r.path){
+         $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong><div class="status-note">${r.path.stations.join(" → ")}</div>`;
+       }else{
