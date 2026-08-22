@@ -1,0 +1,139 @@
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -167,6 +167,78 @@
+ }
+ 
+ 
++function liveBusHtml(b){
++  const live=b.liveArrival;
++  if(!live || live.error) return '';
++  const vs=live.vehicles||[];
++  if(!vs.length) return `<div class="live-line muted">실시간 ${live.flag||'조회됨'} · 현재 도착예정 차량 없음</div>`;
++  const fmt=v=>{
++    const eta=v.etaMin!=null?`${v.etaMin}분 후`:'도착시간 확인 중';
++    const stops=v.stopsAway!=null?` · ${v.stopsAway}정거장 전`:'';
++    const seat=v.remainSeats!=null?` · ${v.remainSeats}석`:'';
++    return `${eta}${stops}${seat}`;
++  };
++  const catchText=b.liveRelevant
++    ? (b.liveCanCatchRail===true?`<b class="live-ok">이 차량으로 목표 열차 연결 가능</b>`:b.liveCanCatchRail===false?`<b class="live-warn">이 차량은 목표 열차 연결이 빠듯/불가</b>`:'')
++    : `<span class="muted">계획 탑승시각과 멀어 현재 실시간은 참고용</span>`;
++  return `<div class="live-line"><b>실시간</b> ${vs.map(fmt).join(' / ')}${live.routeDestination?` · ${live.routeDestination} 방면`:''}<br>${catchText}</div>`;
++}
++
++function subwaySegments(subway){
++  const stations=subway?.stations||[];
++  const lines=subway?.lines||[];
++  if(stations.length<2 || !lines.length) return [];
++  const out=[];
++  let start=0, line=lines[0];
++  for(let i=1;i<lines.length;i++){
++    if(lines[i]!==line){
++      out.push({line,from:stations[start],to:stations[i],stops:i-start});
++      start=i; line=lines[i];
++    }
++  }
++  out.push({line,from:stations[start],to:stations[stations.length-1],stops:stations.length-1-start});
++  return out;
++}
++
++function genericTimeline(c){
++  const rows=[];
++  const push=(kind,time,title,sub,detail)=>rows.push(timelineRow(kind,time,title,sub,detail));
++  if(c.accessStop){
++    push('walk','-',`현재 위치 → ${c.accessStop.name}`,`도보 약 ${c.accessWalkMinutes||'-'}분`,`${Math.round(c.accessDistanceM||0)}m`);
++  }
++
++  const subwayRows=()=>{
++    const segs=subwaySegments(c.subway);
++    if(!segs.length && c.subway){
++      push('suin','-',`${state.origin.type==='subway'?state.origin.name:(c.transferSubwayStation||'지하철')}역 출발`,`${c.subway.to||state.destination.name}역까지 지하철`, `구조 예상 약 ${c.subway.minutesEstimate||'-'}분`);
++      return;
++    }
++    segs.forEach(seg=>{
++      const line=String(seg.line||'');
++      const kind=line.includes('신분당')?'shin':'suin';
++      push(kind,'-',`${badge(line.includes('신분당')?'신분당선':'수인분당선')}${seg.from}역 → ${seg.to}역`,`${line}선 · ${seg.stops}개 역`, `시간표 DB 미적재 구간은 구조 예상`);
++    });
++  };
++
++  const busRow=()=>{
++    const from=c.originName||c.transferBusStationName||c.accessStop?.name||state.origin.name;
++    const to=c.destinationBusStationName||c.transferBusStationName||c.egressStop?.name||state.destination.name;
++    const mins=c.busMinutesEstimate||c.totalMinutesEstimate||'-';
++    push('bus','-',`${badge('버스')}${c.routeName?c.routeName+'번':'버스'} 탑승`,`${from} → ${to}`,`버스 구조 예상 약 ${mins}분${c.busStops!=null?` · ${c.busStops}정거장`:''}`);
++  };
++
++  const mode=String(c.mode||'');
++  const subwayFirst=state.origin.type==='subway' || mode.includes('subway-to');
++  if(subwayFirst){ if(c.subway) subwayRows(); if(c.routeName) busRow(); }
++  else { if(c.routeName) busRow(); if(c.subway) subwayRows(); }
++
++  if(c.egressStop){
++    push('walk','-',`${c.egressStop.name} → 현재 위치`,`하차 후 도보 약 ${c.egressWalkMinutes||'-'}분`,`${Math.round(c.egressDistanceM||0)}m`);
++  }
++  push('finish','-',`${state.destination.name} 도착`,`출발지: ${state.origin.name}`,`전체 구조 예상 약 ${c.totalMinutesEstimate||'-'}분`);
++  return `<div class="timeline-v2">${rows.join('')}</div>`;
++}
++
+ function busCandidateHtml(b,i){
+   const board=b.recommendedBoarding||b.latestBoarding||b.originMedian||"-";
+   const dest=b.estimatedGosaek||b.estimatedDestination||"-";
+@@ -178,6 +250,7 @@
+   return `<div class="bus-candidate ${i===0?"best":""}">
+     <div class="route">${badge("버스")}${b.routeName}번 ${i===0?"· 추천":""}</div>
+     <div class="hist"><b>${board} 탑승</b> → ${dest} 고색 도착 예상 · 약 ${b.travelMedianMin||"-"}분${walk}${stop}<br>${hist}</div>
++    ${liveBusHtml(b)}
+   </div>`;
+ }
+ 
+@@ -219,14 +292,17 @@
+       )}
+     </div>`;
+ 
++  const liveRec=x.realtimeRecommendedBus;
++  const liveBanner=liveRec?`<div class="live-recommend"><b>지금 타야 할 버스</b> · ${liveRec.routeName}번 ${((liveRec.liveArrival||{}).vehicles||[])[0]?.etaMin??'-'}분 후 도착 · ${liveRec.liveEstimatedTransferArrival||'-'} 고색 도착 예상 · 목표 열차 연결 가능</div>`:'';
+   $("#result").innerHTML=`
+-    <strong class="big">${x.recommendedLeaveTime||board} 출발 → ${x.finalArrival||shin.arrival} 판교 도착</strong>
+-    <div class="path-summary"><b>${x.target}까지 도착</b> 기준 역산 · 총 약 <b>${x.totalMinutesEstimate??"-"}분</b> · 목표 대비 <b>${x.goalSlackMin>=0?`${x.goalSlackMin}분 여유`:`${Math.abs(x.goalSlackMin)}분 초과`}</b></div>
++    <strong class="big">${state.origin.name} → ${state.destination.name}</strong>
++    <div class="path-summary"><b>${x.target}까지 도착</b> 기준으로 뒤에서부터 역산했습니다. 권장 출발 <b>${x.recommendedLeaveTime||board}</b> · 최종 도착 <b>${x.finalArrival||shin.arrival}</b> · 총 약 <b>${x.totalMinutesEstimate??"-"}분</b> · <b>${x.goalSlackMin>=0?`${x.goalSlackMin}분 여유`:`${Math.abs(x.goalSlackMin)}분 초과`}</b></div>
++    ${liveBanner}
+     ${timeline}
+-    <h2>버스 후보</h2>
++    <h2>와우지구 버스 후보 · 실시간 포함</h2>
+     ${buses.length?buses.map(busCandidateHtml).join(""):'<div class="warning-note">고색역으로 연결되는 버스 후보를 아직 찾지 못했습니다.</div>'}
+-    ${!x.busHistoryReady?'<div class="warning-note">버스의 정확한 특정 시각 도착 이력은 아직 축적 중입니다. 지금은 노선 구조와 공식 배차간격으로 마지막 탑승 가능 시각을 계산하며, 이력이 쌓이면 성공확률 기준으로 자동 교체됩니다.</div>':""}
+-    <div class="status-note">${x.plannerNote||""}<br>철도 데이터: ${x.railSource} · ${x.railPairing||"-"}</div>`;
++    ${!x.busHistoryReady?'<div class="warning-note">과거 도착 이력은 계속 축적 중입니다. 현재는 노선 구조·공식 배차간격에 실시간 도착정보를 함께 표시하고, 이력이 충분해지면 환승 성공확률 중심으로 순위를 바꿉니다.</div>':""}
++    <div class="status-note">${x.plannerNote||""}<br>실시간 조회: ${x.realtimeCheckedAt||'-'} · 철도 데이터: ${x.railSource} · ${x.railPairing||"-"}</div>`;
+ }
+ 
+ 
+@@ -305,7 +381,7 @@
+ $("#planBtn").onclick=async()=>{
+   if(!state.origin||!state.destination)return alert("출발지와 도착지는 검색 결과에서 각각 하나씩 선택해줘.");
+   showLoading();
+-  const t=$("#target").value||"08:22";
++  const t=$("#target").value||"08:25";
+   try{
+     const isPangyo = state.destination.type==="subway" && state.destination.name.includes("판교");
+     const gpsNearWow = state.origin.type==="coordinate" && (state.origin.nearbyStops||[]).some(s=>String(s.name||"").includes("와우지구"));
+@@ -324,12 +400,12 @@
+     }else{
+       const r=await genericRoute();
+       if(r.ok && r.candidates && r.candidates.length){
+-        const c=r.candidates[0];
+-        const access=c.accessStop?`현재 위치 → ${c.accessStop.name} 도보 ${c.accessWalkMinutes||"-"}분 → `:"";
+-        const egress=c.egressStop?` → ${c.egressStop.name} 하차 후 도보 ${c.egressWalkMinutes||"-"}분`:"";
++        const c={...r.candidates[0],mode:r.mode};
+         $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong>
+-        <div class="path-summary">GPS를 사용하면 가까운 정류장을 여러 개 비교해 전체 이동시간이 가장 짧은 승차 정류장을 자동 선택합니다.</div>
+-        <div class="status-note">${access}${c.routeName?`${c.routeName}번`:""} ${c.transferSubwayStation?`→ ${c.transferSubwayStation}역 환승`:""}${egress}<br>구조 예상 ${c.totalMinutesEstimate||"-"}분</div>`;
++        <div class="path-summary">출발지와 목적지 방향을 그대로 유지해 전체 구간을 순서대로 표시합니다. GPS 목적지는 주변 정류장 여러 곳을 비교한 뒤 마지막 도보까지 포함합니다.</div>
++        ${genericTimeline(c)}
++        ${liveBusHtml(c)}
++        <div class="status-note">현재 범용 경로는 노선 구조 기반 예상입니다.${r.realtimeCheckedAt?` 버스 실시간 조회 ${r.realtimeCheckedAt}.`:''} 철도 시간표와 환승 시각은 운행표 DB 확장 후 실시간 연결 계산으로 교체됩니다.</div>`;
+       }else if(r.ok && r.path){
+         $("#result").innerHTML=`<strong class="big">${state.origin.name} → ${state.destination.name}</strong><div class="status-note">${r.path.stations.join(" → ")}</div>`;
+       }else{
