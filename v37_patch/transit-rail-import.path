@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Transit official rail import folders
+
+[Path]
+PathChanged=/home/ubuntu/transit-pwa/data/import/rail_timetable
+PathChanged=/home/ubuntu/transit-pwa/data/import/station_names
+Unit=transit-rail-import.service
+
+[Install]
+WantedBy=multi-user.target
