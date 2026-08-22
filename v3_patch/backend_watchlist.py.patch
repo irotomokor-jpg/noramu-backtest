@@ -1,0 +1,17 @@
+--- a/backend/watchlist.py
++++ b/backend/watchlist.py
+@@ -76,10 +76,13 @@
+         con.commit()
+ 
+ def log_search(origin, destination, mode):
++    # Do not persist precise GPS coordinates. Coordinate endpoints are recorded only as 'gps'.
++    def safe_id(x):
++        return 'gps' if x.get('type') == 'coordinate' else x.get('id')
+     with connect() as con:
+         con.execute(
+             '''INSERT INTO search_events(created_at,origin_type,origin_id,origin_name,destination_type,destination_id,destination_name,mode)
+                VALUES(?,?,?,?,?,?,?,?)''',
+-            (_now(), origin.get('type'), origin.get('id'), origin.get('name'), destination.get('type'), destination.get('id'), destination.get('name'), mode),
++            (_now(), origin.get('type'), safe_id(origin), origin.get('name'), destination.get('type'), safe_id(destination), destination.get('name'), mode),
+         )
+         con.commit()
