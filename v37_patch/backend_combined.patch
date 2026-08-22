@@ -1,0 +1,207 @@
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -20,6 +20,7 @@
+ from backend.free_router import FreeRouter, LINES, norm_name
+ from backend.bus_history import station_pattern, paired_trip_stats, rank_for_deadline, coverage_summary, next_arrival_wait_stats
+ from backend.rail_db import latest_arrival_before, earliest_departure_after, segment_trips
++from backend.rail_catalog import coverage_status as rail_coverage_status
+ from backend.watchlist import (
+     register_router_result, watch_route_names, list_watch,
+     set_enabled, upsert_watch, log_search,
+@@ -417,6 +418,7 @@
+         'watchlist': list_watch(50, False),
+         'locationCallsToday': int(usage[0]) if usage else 0,
+         'history': coverage_summary(20),
++        'rail': rail_coverage_status(),
+     }
+ 
+ 
+--- a/backend/import_station_names_xlsx.py
++++ b/backend/import_station_names_xlsx.py
+@@ -31,20 +31,33 @@
+     now = datetime.now().isoformat(timespec="seconds")
+     with connect() as con:
+         for ws in wb.worksheets:
+-            rows = ws.iter_rows(values_only=True)
+-            try:
+-                headers = [str(x or "").strip() for x in next(rows)]
+-            except StopIteration:
+-                continue
+-            ko_i = _find(headers, ["역명(한글)", "역명한글", "한글역명", "역명"])
+-            en_i = _find(headers, ["역명(영문)", "역명영문", "영문역명", "영문"])
+-            roman_i = _find(headers, ["역명(로마자)", "역명로마자", "로마자"])
+-            ja_i = _find(headers, ["역명(일본어)", "역명일본어", "일본어"])
+-            route_i = _find(headers, ["노선명", "운영노선", "호선"])
+-            station_id_i = _find(headers, ["역번호", "역사번호", "stationid"])
+-            if ko_i is None:
++            header_row = None
++            headers = None
++            indices = None
++            for rno in range(1, min(ws.max_row, 20) + 1):
++                vals = [ws.cell(rno, c).value for c in range(1, ws.max_column + 1)]
++                h = [str(x or "").strip() for x in vals]
++                cand = {
++                    "ko": _find(h, ["역명(한글)", "역명한글", "한글역명", "역명"]),
++                    "en": _find(h, ["역명(영문)", "역명영문", "영문역명", "영문"]),
++                    "roman": _find(h, ["역명(로마자)", "역명로마자", "로마자"]),
++                    "ja": _find(h, ["역명(일본어)", "역명일본어", "일본어"]),
++                    "route": _find(h, ["노선명", "운영노선", "호선"]),
++                    "station_id": _find(h, ["역번호", "역사번호", "stationid"]),
++                }
++                if cand["ko"] is not None:
++                    header_row, headers, indices = rno, h, cand
++                    break
++            if header_row is None:
+                 continue
++            ko_i = indices["ko"]
++            en_i = indices["en"]
++            roman_i = indices["roman"]
++            ja_i = indices["ja"]
++            route_i = indices["route"]
++            station_id_i = indices["station_id"]
+             sheets += 1
++            rows = ws.iter_rows(min_row=header_row + 1, values_only=True)
+             for row in rows:
+                 ko = str(row[ko_i] or "").strip() if ko_i < len(row) else ""
+                 if not ko:
+@@ -54,7 +67,8 @@
+                 roman = str(row[roman_i] or "").strip() if roman_i is not None and roman_i < len(row) else ""
+                 route = str(row[route_i] or "").strip() if route_i is not None and route_i < len(row) else ""
+                 sid = str(row[station_id_i] or "").strip() if station_id_i is not None and station_id_i < len(row) else ""
+-                ko = re.sub(r"\([^)]*\)", "", ko).replace("역", "").strip()
++                ko = re.sub(r"\([^)]*\)", "", ko).strip()
++                ko = re.sub(r"역$", "", ko).strip()
+                 con.execute(
+                     """INSERT INTO subway_station_aliases(
+                          station_name_ko,route_name,station_id,station_name_en,station_name_ja,romanized_name,source,updated_at
+--- a/backend/self_check.py
++++ b/backend/self_check.py
+@@ -47,7 +47,7 @@
+         required = {
+             "bus_routes","bus_stations","route_stations",
+             "bus_arrivals","bus_observations","watch_routes",
+-            "api_usage","rail_events"
++            "api_usage","rail_events","rail_stations","rail_edges","rail_import_files","subway_station_aliases"
+         }
+         missing = sorted(required - tables)
+         if missing:
+@@ -102,6 +102,15 @@
+             "별도 활용신청 API이며 현재 앱의 필수조건이 아닙니다. 403이어도 정상 동작합니다."
+         )
+ 
++    try:
++        from backend.rail_catalog import coverage_status
++        rail = coverage_status()
++        ok("Rail catalog", f"events={rail['events']} edges={rail['edges']} aliases={rail['stationAliases']}")
++        if not rail['events']:
++            warn("Official rail timetable", "rail_events가 0건입니다. data/import/rail_timetable에 공식 XLSX를 넣으면 자동 import됩니다.")
++    except Exception as e:
++        fail("Rail catalog", str(e)); failures += 1
++
+     print("\nCounts:")
+     print(json.dumps(counts, ensure_ascii=False, indent=2))
+     print("Full metadata synced at:", get_meta("metadata_synced_at") or "-")
+--- a/backend/show_status.py
++++ b/backend/show_status.py
+@@ -3,6 +3,7 @@
+ from backend.transit_db import init_db, db_counts, get_meta, connect
+ from backend.watchlist import list_watch
+ from backend.bus_history import coverage_summary
++from backend.rail_catalog import coverage_status as rail_coverage_status
+ 
+ def main():
+     init_db()
+@@ -15,6 +16,7 @@
+         'locationCallsToday': int(row[0]) if row else 0,
+         'watchlist': list_watch(50, False),
+         'history': coverage_summary(20),
++        'rail': rail_coverage_status(),
+     }, ensure_ascii=False, indent=2))
+     return 0
+ 
+--- a/backend/station_names.py
++++ b/backend/station_names.py
+@@ -25,7 +25,7 @@
+     s = str(v or "").strip().lower()
+     s = s.replace("（", "(").replace("）", ")")
+     s = re.sub(r"\s+", "", s)
+-    s = s.replace("駅", "").replace("역", "")
++    s = re.sub(r"(?:역|駅)$", "", s)
+     return s
+ 
+ 
+@@ -97,7 +97,8 @@
+ 
+ def names_for_station(ko_name: str, route_name: str = "", station_id: str = "") -> dict[str, str]:
+     ensure_core_aliases()
+-    ko = re.sub(r"\([^)]*\)", "", str(ko_name or "")).replace("역", "").strip()
++    ko = re.sub(r"\([^)]*\)", "", str(ko_name or "")).strip()
++    ko = re.sub(r"역$", "", ko).strip()
+     if not ko:
+         return {"ko": str(ko_name or "")}
+     with connect() as con:
+--- a/backend/transit_db.py
++++ b/backend/transit_db.py
+@@ -182,6 +182,44 @@
+ );
+ CREATE INDEX IF NOT EXISTS idx_rail_station_time ON rail_events(route_name, station_name, day_type, arrival_sec, departure_sec);
+ 
++CREATE TABLE IF NOT EXISTS rail_stations (
++  route_name TEXT NOT NULL,
++  station_name TEXT NOT NULL,
++  min_order INTEGER,
++  max_order INTEGER,
++  service_types TEXT,
++  day_types TEXT,
++  source_count INTEGER NOT NULL DEFAULT 0,
++  updated_at TEXT,
++  PRIMARY KEY(route_name, station_name)
++);
++CREATE INDEX IF NOT EXISTS idx_rail_stations_name ON rail_stations(station_name, route_name);
++
++CREATE TABLE IF NOT EXISTS rail_edges (
++  route_name TEXT NOT NULL,
++  day_type TEXT NOT NULL DEFAULT '',
++  service_type TEXT NOT NULL DEFAULT '',
++  from_station TEXT NOT NULL,
++  to_station TEXT NOT NULL,
++  from_order INTEGER,
++  to_order INTEGER,
++  runtime_sec INTEGER,
++  sample_trains INTEGER NOT NULL DEFAULT 0,
++  updated_at TEXT,
++  PRIMARY KEY(route_name, day_type, service_type, from_station, to_station)
++);
++CREATE INDEX IF NOT EXISTS idx_rail_edges_from ON rail_edges(from_station, route_name, day_type);
++CREATE INDEX IF NOT EXISTS idx_rail_edges_to ON rail_edges(to_station, route_name, day_type);
++
++CREATE TABLE IF NOT EXISTS rail_import_files (
++  file_path TEXT PRIMARY KEY,
++  file_sha256 TEXT NOT NULL,
++  kind TEXT NOT NULL,
++  imported_at TEXT NOT NULL,
++  row_count INTEGER NOT NULL DEFAULT 0,
++  status TEXT NOT NULL DEFAULT 'ok',
++  message TEXT
++);
+ 
+ CREATE TABLE IF NOT EXISTS subway_station_aliases (
+   station_name_ko TEXT NOT NULL,
+@@ -223,7 +261,7 @@
+     _add_missing_columns(con, "bus_stations", {"metadata_version":"TEXT", "updated_at":"TEXT"})
+     _add_missing_columns(con, "route_stations", {"metadata_version":"TEXT"})
+     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_bus_arrivals_event_key ON bus_arrivals(event_key) WHERE event_key IS NOT NULL")
+-    con.execute("INSERT OR REPLACE INTO import_meta(key,value) VALUES('schema_version','latest-2')")
++    con.execute("INSERT OR REPLACE INTO import_meta(key,value) VALUES('schema_version','latest-3')")
+ 
+ def connect():
+     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+@@ -275,7 +313,7 @@
+     return f"{h:02d}:{m:02d}:{s:02d}" if seconds else f"{h:02d}:{m:02d}"
+ 
+ def db_counts():
+-    names = ["bus_routes", "bus_stations", "route_stations", "bus_vehicles", "bus_arrivals", "bus_observations", "watch_routes", "rail_events", "subway_station_aliases"]
++    names = ["bus_routes", "bus_stations", "route_stations", "bus_vehicles", "bus_arrivals", "bus_observations", "watch_routes", "rail_events", "rail_stations", "rail_edges", "rail_import_files", "subway_station_aliases"]
+     out = {}
+     with connect() as con:
+         for name in names:
