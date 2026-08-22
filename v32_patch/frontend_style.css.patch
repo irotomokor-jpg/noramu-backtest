@@ -1,0 +1,10 @@
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -130,3 +130,7 @@
+ 
+ .debug-details code{display:block;margin-top:10px;background:#111827;color:#fff;border-radius:10px;padding:10px;overflow:auto;font-size:12px}
+ .live-line{margin-top:9px;padding:9px 10px;border-radius:11px;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.5}.live-line .muted,.live-line.muted{color:#6b7280;background:#f9fafb}.live-ok{color:#047857}.live-warn{color:#b45309}.live-recommend{margin:10px 0 14px;padding:12px 14px;border:1px solid #86efac;background:#f0fdf4;border-radius:14px;color:#166534;font-size:13px;line-height:1.55}.live-recommend b{font-size:15px}
++
++.header-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
++.lang-control select{border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;padding:7px 28px 7px 10px;font-size:12px;font-weight:800}
++@media(max-width:420px){.header-top{align-items:flex-start}.lang-control select{font-size:11px}}
