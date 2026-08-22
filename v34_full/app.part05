@@ -1,0 +1,100 @@
+  const j=x.recommendedJourney;
+  if(!j){
+    const rows=(x.busPatterns||[]).map(b=>{
+      if(!b.samples)return `<div class="bus-candidate"><div class="route">${b.routeName}</div><div class="hist">${tr('noVehicle')}</div></div>`;
+      return `<div class="bus-candidate"><div class="route">${b.routeName}</div><div class="hist">${tr('historyReference',{n:b.samples})}</div></div>`;
+    }).join("");
+    $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="path-summary">${x.message}</div>${rows}<div class="status-note">${tr('railRealtimeOptional')}</div>`;
+    return;
+  }
+  const v=j.chosenVehicle||{},s=j.suinBundang||{},h=j.shinbundang||{};
+  const live=`${tr('live')} ${x.realtimeCheckedAt||'-'} · ${j.routeName} · ${tr('minutesLater',{n:v.etaMin??'-'})}${v.stopsAway!=null?` · ${tr('stopsAway',{n:v.stopsAway})}`:''}`;
+  const timeline=`<div class="timeline-v2">
+    ${timelineRow('bus',j.boardTime,`${badge('버스')}${j.routeName} ${tr('boardAt',{time:j.boardTime})}`,`${j.estimatedGosaek} · ${displayStationName('고색')}`,`${tr('minutes',{n:j.travelMedianMin||'-'})} · ${live}`)}
+    ${timelineRow('suin',s.departure,`${badge('수인분당선')}${railTypeChip(s.serviceType)}${displayStationName('고색')} → ${displayStationName('정자')}`,`${s.arrival} · ${tr('scheduledRail')}`,tr('minutes',{n:s.runtimeMin||'-'}))}
+    ${timelineRow('shin',h.departure,`${badge('신분당선')}${railTypeChip(h.serviceType)}${displayStationName('정자')} → ${displayStationName('판교')}`,`${h.arrival} · ${tr('scheduledRail')}`,tr('minutes',{n:h.runtimeMin||'-'}))}
+    ${timelineRow('finish',j.finalArrival,tr('arrived',{name:displayPlace(state.destination)}),`${tr('finalArrival')} ${j.finalArrival}`,`${tr('totalAbout')} ${formatDuration(j.totalMinutesEstimate)}`)}
+  </div>`;
+  const alternatives=(x.journeys||[]).slice(1,4).map(a=>`<div class="bus-candidate"><div class="route">${a.routeName} · ${tr('minutesLater',{n:a.chosenVehicle?.etaMin??'-'})}</div><div class="hist">${a.boardTime} → ${a.finalArrival} · ${formatDuration(a.totalMinutesEstimate)}</div></div>`).join('');
+  $("#result").innerHTML=`
+    <strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
+    <div class="path-summary"><b>${x.requestedNow?tr('recommendedNow'):tr('liveBusPlan')}</b> · ${x.depart} ${x.requestedNow?tr('departNow'):''} · ${tr('finalArrival')} <b>${j.finalArrival}</b> · ${tr('totalAbout')} <b>${formatDuration(j.totalMinutesEstimate)}</b></div>
+    ${timeline}
+    ${alternatives?`<h2>${tr('busCandidates')}</h2>${alternatives}`:''}
+    <div class="status-note">${x.message}<br>${tr('railRealtimeOptional')}<br>Rail: ${j.railScheduleBasis||j.railSource||'-'}</div>`;
+}
+
+async function genericRoute(){
+  const q=new URLSearchParams({
+    origin_type:state.origin.type,origin_id:state.origin.id,origin_name:state.origin.name,
+    destination_type:state.destination.type,destination_id:state.destination.id,destination_name:state.destination.name,
+    mode:state.mode
+  });
+  return api(`/api/router/free?${q}`);
+}
+
+$("#planBtn").onclick=async()=>{
+  if(!state.origin||!state.destination)return alert(tr("selectBoth"));
+  showLoading();
+  const t=$("#target").value||"08:25";
+  try{
+    const isPangyo = state.destination.type==="subway" && state.destination.name.includes("판교");
+    const selectedWow = state.origin.type==="bus" && (state.origin.name.includes("와우지구") || String(state.origin.mobileNo||"")==="36194" || String(state.origin.id||"")==="233000945");
+    const tryGpsPangyo = isPangyo && state.origin.type==="coordinate" && state.mode==="reverse";
+    const tryWowPangyo = isPangyo && selectedWow && state.mode==="reverse";
+
+    if(tryGpsPangyo || tryWowPangyo){
+      const extra=state.origin.type==="coordinate"
+        ? `&origin_lat=${encodeURIComponent(state.origin.lat)}&origin_lon=${encodeURIComponent(state.origin.lon)}`
+        : `&origin_station_id=${encodeURIComponent(state.origin.id||"")}`;
+      const reverse=await api(`/api/planner/reverse-pangyo?target=${encodeURIComponent(t)}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}${extra}`);
+      if((reverse.busCandidates||[]).length){
+        renderReverse(reverse);
+        return;
+      }
+      // GPS can be anywhere. If no Gosaek-bound candidate exists nearby, use the general router instead of fabricating a benchmark leg.
+    }
+
+    if(isPangyo && selectedWow && state.mode==="forward"){
+      renderForward(await api(`/api/planner/forward-pangyo?depart=${encodeURIComponent(t)}&origin_station_id=${encodeURIComponent(state.origin.id||"")}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}&now=${state.departNow?'true':'false'}`));
+      return;
+    }
+    if(isPangyo && selectedWow && (state.mode==="first" || state.mode==="last")){
+      renderFirstLast(await api(`/api/planner/firstlast-pangyo?criterion=${state.mode}&pangyo_station_id=${encodeURIComponent(state.destination.id||"")}&origin_station_id=${encodeURIComponent(state.origin.id||"")}`));
+      return;
+    }
+
+    const r=await genericRoute();
+    if(r.ok && r.candidates && r.candidates.length){
+      const c={...r.candidates[0],mode:r.mode};
+      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong>
+      <div class="path-summary">${tr('genericSummary')}</div>
+      ${genericTimeline(c)}
+      ${liveBusHtml(c)}
+      <div class="status-note">${tr('genericNote')}${r.realtimeCheckedAt?` ${tr('live')} ${r.realtimeCheckedAt}.`:''}</div>`;
+    }else if(r.ok && r.path){
+      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="status-note">${r.path.stations.join(" → ")}</div>`;
+    }else{
+      $("#result").innerHTML=`<strong class="big">${displayPlace(state.origin)} → ${displayPlace(state.destination)}</strong><div class="status-note">${r.message||tr('noRoute')}</div>`;
+    }
+  }catch(e){$("#result").innerHTML=`<strong class="big">${tr('calcFailed')}</strong><div class="status-note">${e.message}</div>`;}
+};
+
+const langSelect=$("#langSelect");
+if(langSelect){
+  langSelect.value=state.lang;
+  langSelect.addEventListener("change",()=>{
+    state.lang=langSelect.value;
+    localStorage.setItem("transitLang",state.lang);
+    applyLanguage();
+    if(!$("#resultCard").hidden && state.origin && state.destination){
+      $("#result").innerHTML=`<div class="status-note">${tr('langChanged')}</div>`;
+      setTimeout(()=>$("#planBtn").click(),0);
+    }
+  });
+}
+
+// No preselected stations. Placeholder examples are visual only.
+state.origin=null;
+state.destination=null;
+$("#originInput").value="";
