@@ -1,0 +1,19 @@
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+   <meta name="theme-color" content="#111827" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+-  <link rel="stylesheet" href="/static/style.css?v=152" />
++  <link rel="stylesheet" href="/static/style.css?v=163" />
+   <title>몇 시에 나가?</title>
+ </head>
+ <body>
+@@ -90,6 +90,6 @@
+ 
+   <footer>Latest · Full Metadata + Watchlist Collector</footer>
+ </main>
+-<script src="/static/app.js?v=152"></script>
++<script src="/static/app.js?v=163"></script>
+ </body>
+ </html>
