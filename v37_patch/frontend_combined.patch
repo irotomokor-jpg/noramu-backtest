@@ -1,0 +1,156 @@
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -9,7 +9,7 @@
+     planReverse:"몇 시에 나가야 해?",planForward:"도착시간 계산",planFirst:"첫차 경로 찾기",planLast:"막차 경로 찾기",
+     resultReverse:"도착시간 역산",resultForward:"출발시간 기준",resultFirst:"첫차 기준",resultLast:"막차 기준",
+     adArea:"광고 영역",adSub:"핵심 결과 확인 후 노출",dataStatus:"데이터 수집 상태",metadataTitle:"전체 메타데이터",
+-    watchTitle:"실운행 Watchlist",watchDesc:"조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.",historyTitle:"과거 이력",checking:"확인 중…",
++    watchTitle:"실운행 Watchlist",watchDesc:"조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.",historyTitle:"과거 이력",railDbTitle:"철도 DB",railDbEmpty:"공식 시간표 미적재",railDbReady:"공식 시간표 적재",checking:"확인 중…",
+     bus:"버스",subway:"지하철",gps:"GPS",noResults:"검색 결과 없음",loading:"계산 중…",calcFailed:"계산 실패",
+     selectBoth:"출발지와 도착지는 검색 결과에서 각각 하나씩 선택해줘.",secureGps:"현재 위치는 HTTPS에서만 사용할 수 있습니다. HTTPS 주소로 접속한 뒤 다시 눌러주세요.",
+     noGeo:"이 브라우저는 위치 기능을 지원하지 않습니다.",gpsChecking:"위치 확인 중…",gpsDenied:"위치 권한이 거부됐습니다. 브라우저 사이트 권한에서 위치를 허용해 주세요.",gpsTimeout:"GPS 확인 시간이 초과됐습니다. 다시 시도해 주세요.",gpsFail:"현재 위치를 확인할 수 없습니다.",
+@@ -34,7 +34,7 @@
+     planReverse:"何時に出ればいい？",planForward:"到着時刻を計算",planFirst:"始発ルートを検索",planLast:"終電ルートを検索",
+     resultReverse:"到着時刻から逆算",resultForward:"出発時刻基準",resultFirst:"始発基準",resultLast:"終電基準",
+     adArea:"広告エリア",adSub:"主要結果の後に表示",dataStatus:"データ収集状況",metadataTitle:"全メタデータ",
+-    watchTitle:"運行 Watchlist",watchDesc:"主要路線を自動収集し、GPS周辺・検索経路の路線も追加学習します。API上限内で継続観測します。",historyTitle:"過去履歴",checking:"確認中…",
++    watchTitle:"運行 Watchlist",watchDesc:"主要路線を自動収集し、GPS周辺・検索経路の路線も追加学習します。API上限内で継続観測します。",historyTitle:"過去履歴",railDbTitle:"鉄道DB",railDbEmpty:"公式時刻表 未登録",railDbReady:"公式時刻表 登録済み",checking:"確認中…",
+     bus:"バス",subway:"地下鉄",gps:"GPS",noResults:"検索結果なし",loading:"計算中…",calcFailed:"計算失敗",
+     selectBoth:"出発地と到着地を検索結果から1つずつ選択してください。",secureGps:"現在地はHTTPSでのみ利用できます。HTTPSのURLから開いてください。",
+     noGeo:"このブラウザは位置情報に対応していません。",gpsChecking:"位置確認中…",gpsDenied:"位置情報の権限が拒否されています。サイト設定で位置情報を許可してください。",gpsTimeout:"GPSの確認がタイムアウトしました。もう一度お試しください。",gpsFail:"現在地を取得できません。",
+@@ -59,7 +59,7 @@
+     planReverse:"When should I leave?",planForward:"Calculate arrival",planFirst:"Find first service",planLast:"Find last service",
+     resultReverse:"Arrive-by plan",resultForward:"Depart-at plan",resultFirst:"First service",resultLast:"Last service",
+     adArea:"Ad area",adSub:"Shown after the main result",dataStatus:"Data collection status",metadataTitle:"Metadata",
+-    watchTitle:"Live Watchlist",watchDesc:"Collects priority routes automatically and learns routes near GPS/search results within the API safety quota.",historyTitle:"History",checking:"Checking…",
++    watchTitle:"Live Watchlist",watchDesc:"Collects priority routes automatically and learns routes near GPS/search results within the API safety quota.",historyTitle:"History",railDbTitle:"Rail database",railDbEmpty:"Official timetable not loaded",railDbReady:"Official timetable loaded",checking:"Checking…",
+     bus:"Bus",subway:"Subway",gps:"GPS",noResults:"No results",loading:"Calculating…",calcFailed:"Calculation failed",
+     selectBoth:"Select one origin and one destination from the search results.",secureGps:"Current location requires HTTPS. Open the HTTPS address and try again.",
+     noGeo:"This browser does not support location.",gpsChecking:"Getting location…",gpsDenied:"Location permission was denied. Allow location in the site settings.",gpsTimeout:"GPS timed out. Please try again.",gpsFail:"Could not get your current location.",
+@@ -620,6 +620,8 @@
+     const enabled=(s.watchlist||[]).filter(x=>x.enabled).length;
+     if($('#watchStatus')) $('#watchStatus').innerHTML=`활성 노선 <b>${enabled}</b> · 오늘 위치 API <b>${s.locationCallsToday}</b>회`;
+     if($('#historyStatus')) $('#historyStatus').innerHTML=`통과 이벤트 <b>${(c.bus_arrivals||0).toLocaleString()}</b>건 · raw 관측 <b>${(c.bus_observations||0).toLocaleString()}</b>건`;
++    const rail=s.rail||{};
++    if($('#railDbStatus')) $('#railDbStatus').innerHTML=`${rail.events?tr('railDbReady'):tr('railDbEmpty')} · events <b>${(rail.events||0).toLocaleString()}</b> · routes <b>${(rail.routes||0).toLocaleString()}</b> · stations <b>${(rail.stations||0).toLocaleString()}</b> · edges <b>${(rail.edges||0).toLocaleString()}</b> · aliases <b>${(rail.stationAliases||0).toLocaleString()}</b>`;
+   }catch(e){ if($('#metadataStatus')) $('#metadataStatus').textContent='상태 조회 실패: '+e.message; }
+ }
+ refreshDataStatus();
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,7 +5,9 @@
+   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+   <meta name="theme-color" content="#111827" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+-  <link rel="stylesheet" href="/static/style.css?v=190" />
++  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
++  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
++  <link rel="stylesheet" href="/static/style.css?v=201" />
+   <title>몇 시에 나가?</title>
+ </head>
+ <body>
+@@ -86,10 +88,15 @@
+       <h2 data-i18n="historyTitle">과거 이력</h2>
+       <div id="historyStatus" class="muted" data-i18n="checking">확인 중…</div>
+     </section>
++    <section class="card">
++      <h2 data-i18n="railDbTitle">철도 DB</h2>
++      <div id="railDbStatus" class="muted" data-i18n="checking">확인 중…</div>
++      <code>python -m backend.rail_maintainer --status</code>
++    </section>
+   </details>
+ 
+   <footer>Latest · Full Metadata + Watchlist Collector</footer>
+ </main>
+-<script src="/static/app.js?v=190"></script>
++<script src="/static/app.js?v=201"></script>
+ </body>
+ </html>
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -1,5 +1,5 @@
+ *{box-sizing:border-box}
+-html,body{margin:0;background:#f3f4f6;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
++html,body{margin:0;background:#f3f4f6;color:#111827;font-family:var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+ body{min-height:100vh}.wrap{max-width:560px;margin:0 auto;padding:28px 16px 60px}
+ header{padding:12px 4px 20px}h1{font-size:34px;line-height:1.1;margin:6px 0 8px}h2{font-size:18px;margin:8px 0}
+ .eyebrow{font-size:12px;font-weight:800;letter-spacing:.12em;color:#6b7280;text-transform:uppercase}
+@@ -20,7 +20,7 @@
+ .suggestion b{display:block;font-size:14px}.suggestion small{color:#6b7280}
+ .swap-btn{display:block;width:44px;height:44px;border:0;border-radius:50%;background:#111827;color:#fff;margin:7px auto;font-size:22px;font-weight:900;cursor:pointer;padding:0}
+ .time-label{display:block;font-size:13px;font-weight:900;color:#374151;margin:18px 0 7px}
+-.target-time{font-size:28px;font-weight:900}
++.target-time{font-size:30px;font-weight:800;letter-spacing:-.01em}
+ button{border:0;border-radius:14px;padding:14px 16px;font-size:15px;font-weight:800;cursor:pointer}
+ .primary-btn{background:#10b981;color:#062a1e;margin-top:12px;width:100%}
+ .result-priority{border:2px solid #111827;scroll-margin-top:10px}.result-kicker{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;font-weight:900;margin-bottom:8px}
+@@ -76,7 +76,7 @@
+ .journey-stop.bus-segment{border-left-color:#3b82f6}
+ .journey-stop.suin-segment{border-left-color:#f5b400}
+ .journey-stop.shin-segment{border-left-color:#d7194a}
+-.journey-time{font-size:20px;font-weight:900;line-height:1.25}
++.journey-time{font-size:20px;font-weight:800;line-height:1.25;letter-spacing:-.01em}
+ .journey-place{font-size:16px;font-weight:800;margin:2px 0}
+ .journey-meta{font-size:12px;color:#6b7280;line-height:1.45}
+ 
+@@ -100,7 +100,7 @@
+ .timeline-v2{position:relative;margin:12px 0 6px}
+ .timeline-row{display:grid;grid-template-columns:74px 28px 1fr;gap:10px;align-items:stretch}
+ .timeline-timebox{padding-top:2px;text-align:right}
+-.timeline-timebox .clock{font-size:18px;font-weight:900;line-height:1.1}
++.timeline-timebox .clock{font-size:19px;font-weight:800;line-height:1.08;letter-spacing:-.01em}
+ .timeline-timebox .mini{font-size:11px;color:#6b7280;margin-top:4px}
+ .timeline-track{position:relative;display:flex;justify-content:center}
+ .timeline-track .shaft{position:absolute;top:0;bottom:0;width:4px;border-radius:999px;background:#d1d5db}
+@@ -137,3 +137,51 @@
+ 
+ /* v3.3 rail service class */
+ .rail-type-chip{display:inline-flex;align-items:center;margin:0 6px 0 2px;padding:2px 7px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:11px;font-weight:800;vertical-align:1px;white-space:nowrap}
++
++
++/* v3.7 typography: language-aware UI font + stable clock numerals */
++:root{
++  --font-ko:"Pretendard Variable","Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif;
++  --font-ja:"Pretendard Variable","Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
++  --font-en:"Pretendard Variable","Inter","SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;
++  --font-num:"Pretendard Variable","SF Pro Display","Segoe UI",Roboto,Arial,sans-serif;
++  --font-ui:var(--font-ko);
++}
++html[lang="ko"]{--font-ui:var(--font-ko)}
++html[lang="ja"]{--font-ui:var(--font-ja)}
++html[lang="en"]{--font-ui:var(--font-en)}
++button,input,select,textarea{font-family:var(--font-ui);font-synthesis:none}
++h1,.result strong.big,.route-title,.timeline-card .title{letter-spacing:-.025em}
++header p,.muted,.timeline-card .subtitle,.timeline-card .detail{letter-spacing:-.012em}
++
++/* Times should look identical when KO/JA/EN is switched. */
++.target-time,.timeline-timebox .clock,.timeline-time,.journey-time,
++.service-window .times,.live-line,.bus-candidate .hist{
++  font-family:var(--font-num);
++  font-variant-numeric:tabular-nums lining-nums;
++  font-feature-settings:"tnum" 1,"lnum" 1;
++  font-kerning:normal;
++}
++.target-time{
++  min-height:62px;
++  line-height:1;
++  color:#111827;
++  -webkit-text-fill-color:#111827;
++}
++input[type="time"]::-webkit-datetime-edit,
++input[type="time"]::-webkit-datetime-edit-fields-wrapper,
++input[type="time"]::-webkit-datetime-edit-text,
++input[type="time"]::-webkit-datetime-edit-hour-field,
++input[type="time"]::-webkit-datetime-edit-minute-field,
++input[type="time"]::-webkit-datetime-edit-ampm-field{
++  font-family:var(--font-num);
++  font-variant-numeric:tabular-nums lining-nums;
++  font-feature-settings:"tnum" 1,"lnum" 1;
++  letter-spacing:0;
++  font-weight:800;
++  color:#111827;
++}
++input[type="time"]::-webkit-calendar-picker-indicator{opacity:.72}
++html[lang="ja"] .eyebrow{letter-spacing:.09em}
++html[lang="ja"] h1,html[lang="ja"] .result strong.big{letter-spacing:-.015em}
++html[lang="en"] h1{letter-spacing:-.03em}
