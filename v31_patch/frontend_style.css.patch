@@ -1,0 +1,7 @@
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -129,3 +129,4 @@
+ .muted-block{background:#f9fafb;border-radius:14px;padding:11px 12px;font-size:12px;line-height:1.55;color:#4b5563}
+ 
+ .debug-details code{display:block;margin-top:10px;background:#111827;color:#fff;border-radius:10px;padding:10px;overflow:auto;font-size:12px}
++.live-line{margin-top:9px;padding:9px 10px;border-radius:11px;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.5}.live-line .muted,.live-line.muted{color:#6b7280;background:#f9fafb}.live-ok{color:#047857}.live-warn{color:#b45309}.live-recommend{margin:10px 0 14px;padding:12px 14px;border:1px solid #86efac;background:#f0fdf4;border-radius:14px;color:#166534;font-size:13px;line-height:1.55}.live-recommend b{font-size:15px}
