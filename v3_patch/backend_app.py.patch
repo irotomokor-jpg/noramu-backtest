@@ -1,0 +1,231 @@
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -21,6 +21,7 @@
+     register_router_result, watch_route_names, list_watch,
+     set_enabled, upsert_watch, log_search,
+ )
++from backend.location_router import nearby_bus_stations, route_from_coordinate, route_to_coordinate
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ FRONT = ROOT / 'frontend'
+@@ -347,6 +348,16 @@
+     return {'items': items, 'count': len(items), 'partialErrors': errors}
+ 
+ 
++@app.get('/api/nearby/bus-stations')
++def nearby_stations(lat: float, lon: float, limit: int = 8, watch: bool = True):
++    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
++        raise HTTPException(400, 'GPS 좌표 범위를 벗어났습니다.')
++    try:
++        return nearby_bus_stations(lat, lon, limit, watch)
++    except Exception as e:
++        raise HTTPException(502, f'주변 정류장 조회 실패: {e}')
++
++
+ @app.get('/api/history/coverage')
+ def history_coverage():
+     return coverage_summary()
+@@ -398,7 +409,11 @@
+                         upsert_watch(str(rid), r.get('routeName'), 60, 'selected-station')
+             except Exception:
+                 pass
+-    if origin_type == 'bus' and destination_type == 'subway':
++    if origin_type == 'coordinate' and destination_type in ('bus', 'subway'):
++        result = route_from_coordinate(origin_id, destination_type, destination_id, destination_name)
++    elif destination_type == 'coordinate' and origin_type in ('bus', 'subway'):
++        result = route_to_coordinate(origin_type, origin_id, origin_name, destination_id)
++    elif origin_type == 'bus' and destination_type == 'subway':
+         result = router.bus_to_subway(origin_id, origin_name, destination_name)
+     elif origin_type == 'subway' and destination_type == 'bus':
+         result = router.subway_to_bus(origin_name, destination_id, destination_name)
+@@ -409,7 +424,7 @@
+     else:
+         result = {
+             'ok': False,
+-            'message': 'GPS 좌표의 주변 정류장/역 자동 연결은 아직 구현 중입니다.',
++            'message': '현재 GPS↔GPS 직접 탐색은 지원하지 않습니다. 한쪽은 정류장/역을 선택해 주세요.',
+             'mode': f'{origin_type}-to-{destination_type}',
+         }
+ 
+@@ -439,14 +454,76 @@
+         return {"count": 0, "routes": [], "warning": f"watch-registration-skipped: {exc}"}
+ 
+ 
++def structural_bus_candidates(origin_station_id: str, deadline_sec: int, route_names=None):
++    """Build truthful fallback boarding candidates when historical arrivals are not ready."""
++    route_names = route_names or ['46', '720', '700-2', '1007']
++    router = FreeRouter(lambda u,p: request_json(u,p), find_recursive, ensure_list)
++    allowed = {str(x) for x in route_names}
++    try:
++        serving = router.station_routes(origin_station_id)
++    except Exception:
++        return []
++    out = []
++    for route in serving:
++        rname = str(route.get('routeName') or '').strip()
++        rid = str(route.get('routeId') or '').strip()
++        if not rid or rname not in allowed:
++            continue
++        try:
++            rows = router.route_stations(rid)
++        except Exception:
++            continue
++        origin_seqs = [int(r.get('stationSeq') or r.get('staOrder') or 0) for r in rows if str(r.get('stationId') or '') == str(origin_station_id)]
++        if not origin_seqs:
++            continue
++        for oseq in origin_seqs:
++            transfers = [r for r in rows if int(r.get('stationSeq') or r.get('staOrder') or 0) > oseq and '고색역' in str(r.get('stationName') or '')]
++            if not transfers:
++                continue
++            stop = min(transfers, key=lambda r: int(r.get('stationSeq') or r.get('staOrder') or 0))
++            dseq = int(stop.get('stationSeq') or stop.get('staOrder') or 0)
++            stops = max(1, dseq - oseq)
++            travel = max(4.0, stops * 1.65)
++            latest_board = int(deadline_sec - travel * 60)
++            info = router.route_info(rid)
++            headway = router.headway_profile(info, 'weekday')
++            reliability = float(headway.get('reliabilityPenalty') or 0)
++            score = travel + reliability + float(headway.get('expectedWaitMin') or 0)
++            out.append({
++                'routeId': rid,
++                'routeName': rname,
++                'historyAvailable': False,
++                'source': 'route-structure',
++                'originStationId': origin_station_id,
++                'transferBusStationId': str(stop.get('stationId') or ''),
++                'transferBusStationName': str(stop.get('stationName') or ''),
++                'busStops': stops,
++                'travelMedianMin': round(travel, 1),
++                'latestBoardingSec': latest_board,
++                'latestBoarding': db_sec_to_hm(latest_board, True),
++                'estimatedDestination': db_sec_to_hm(int(latest_board + travel * 60), True),
++                'headway': headway,
++                'score': round(score, 1),
++                'note': '실제 과거도착 표본이 없어 노선 구조·배차간격으로 계산한 마지막 탑승 가능 시각',
++            })
++    unique = {}
++    for c in out:
++        k = c['routeId']
++        if k not in unique or c['score'] < unique[k]['score']:
++            unique[k] = c
++    return sorted(unique.values(), key=lambda x: (x['score'], -x['latestBoardingSec']))
++
++
+ # 아래 3개 planner는 현재 정확도 검증용 와우지구→판교 benchmark.
+ # 데이터 수집 범위 자체는 전 노선/전 정류장 구조다.
+ @app.get('/api/planner/reverse-pangyo')
+-def reverse_pangyo(target='08:22', pangyo_station_id='', origin_station_id='', transfer_buffer_min: int = 3, station_buffer_min: int = 5):
++def reverse_pangyo(target='08:25', pangyo_station_id='', origin_station_id='', origin_lat: float | None = None, origin_lon: float | None = None, transfer_buffer_min: int = 3, station_buffer_min: int = 5):
+     target_sec = target_to_seconds(target)
+-    watched = watch_routes_serving_station(origin_station_id, 90, 'reverse-origin') if origin_station_id else {'count':0,'routes':[]}
++    watched = {'count':0,'routes':[]}
++    gps_nearby = []
+ 
+-    # local train-number DB 우선
++    # local train-number DB first, then TAGO fallback.
+     shin = latest_arrival_before('신분당', '정자', '판교', target_sec, 'weekday')
+     suin = None
+     source = 'KR-rail-local-db'
+@@ -472,12 +549,84 @@
+ 
+     deadline = suin['departureSec'] - station_buffer_min * 60
+     guess = deadline - 20 * 60
+-    watch_route_names(['46', '1007', '700-2'], 90, 'benchmark-search')
+-    buses = rank_for_deadline(
+-        ['46', '1007', '700-2'],
++    route_names = ['46', '720', '700-2', '1007']
++    watch_route_names(route_names, 90, 'benchmark-search')
++    history = rank_for_deadline(
++        route_names,
+         '와우지구', '고색역.고색초교.태산아파트',
+         deadline, guess, 'weekday',
+     )
++    history_map = {x.get('routeName'): x for x in history}
++    structural = []
++    if origin_station_id:
++        watched = watch_routes_serving_station(origin_station_id, 90, 'reverse-origin')
++        structural = structural_bus_candidates(origin_station_id, deadline, route_names)
++    elif origin_lat is not None and origin_lon is not None:
++        near = nearby_bus_stations(float(origin_lat), float(origin_lon), 6, True)
++        gps_nearby = near.get('items', [])
++        for stop in gps_nearby[:5]:
++            cs = structural_bus_candidates(stop['id'], deadline, route_names)
++            for c in cs:
++                c = dict(c)
++                c['accessStop'] = stop
++                c['accessWalkMinutes'] = stop.get('walkMinutes', 0)
++                c['accessDistanceM'] = stop.get('distanceM', 0)
++                c['score'] = round(float(c.get('score') or 999) + float(stop.get('walkMinutes') or 0), 1)
++                structural.append(c)
++        structural.sort(key=lambda x: (x.get('score', 999), x.get('accessDistanceM', 99999)))
++    buses = []
++    seen = set()
++    for c in structural:
++        h = history_map.get(c['routeName']) or {}
++        merged = dict(c)
++        if h.get('historyAvailable'):
++            merged.update(h)
++            merged['routeId'] = c['routeId']
++            merged['source'] = 'historical-arrivals'
++            try:
++                board_sec = h.get('medianSec') or db_hm_to_sec(h.get('originMedian'))
++            except Exception:
++                board_sec = c['latestBoardingSec']
++            merged['recommendedBoardingSec'] = int(board_sec)
++            merged['recommendedBoarding'] = db_sec_to_hm(int(board_sec), True)
++        else:
++            merged['recommendedBoardingSec'] = c['latestBoardingSec']
++            merged['recommendedBoarding'] = c['latestBoarding']
++        merged['estimatedGosaek'] = merged.get('estimatedDestination')
++        upsert_watch(c['routeId'], c['routeName'], 90, 'reverse-candidate')
++        buses.append(merged)
++        seen.add(c['routeName'])
++    for h in history:
++        if h.get('routeName') not in seen and h.get('historyAvailable'):
++            h = dict(h)
++            try:
++                bsec = db_hm_to_sec(h.get('originMedian'))
++            except Exception:
++                bsec = guess
++            h['recommendedBoardingSec'] = bsec
++            h['recommendedBoarding'] = db_sec_to_hm(bsec, True)
++            h['estimatedGosaek'] = h.get('estimatedDestination')
++            h['source'] = 'historical-arrivals'
++            buses.append(h)
++
++    buses.sort(key=lambda x: (
++        not x.get('historyAvailable', False),
++        float(x.get('score', 999)),
++        -int(x.get('recommendedBoardingSec') or 0),
++    ))
++    recommended = buses[0] if buses else None
++    final_arrival_sec = int(shin['arrivalSec'])
++    goal_slack = round((target_sec - final_arrival_sec) / 60, 1)
++    total_min = None
++    leave_time = None
++    if recommended:
++        board_sec = int(recommended.get('recommendedBoardingSec') or recommended.get('latestBoardingSec') or guess)
++        walk_min = int(recommended.get('accessWalkMinutes') or 0)
++        leave_sec = board_sec - walk_min * 60
++        leave_time = db_sec_to_hm(leave_sec, True)
++        total_min = round((final_arrival_sec - leave_sec) / 60, 1)
++
+     return {
+         'mode': 'arrive-by',
+         'target': target,
+@@ -489,8 +638,15 @@
+         'stationBufferMin': station_buffer_min,
+         'gosaekPlatformDeadline': db_sec_to_hm(deadline, True),
+         'busCandidates': buses,
++        'recommendedBus': recommended,
++        'recommendedLeaveTime': leave_time,
++        'finalArrival': db_sec_to_hm(final_arrival_sec, True),
++        'goalSlackMin': goal_slack,
++        'totalMinutesEstimate': total_min,
+         'busHistoryReady': any(x.get('historyAvailable') for x in buses),
+         'watchRoutesAdded': watched.get('count', 0),
++        'gpsNearbyStops': gps_nearby,
++        'plannerNote': '철도는 실제 시간표를 역산하고, 버스는 과거 이력이 있으면 시간대별 이력·없으면 노선 구조와 배차간격으로 마지막 탑승 가능 시각을 계산합니다.',
+     }
+ 
+ 
