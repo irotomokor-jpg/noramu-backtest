@@ -24,14 +24,12 @@ else
   sudo snap refresh certbot >/dev/null 2>&1 || true
 fi
 sudo ln -sf /snap/bin/certbot /usr/local/bin/certbot
-
-CERTBOT_VERSION="$(certbot --version 2>&1 || true)"
-echo "$CERTBOT_VERSION"
+certbot --version || true
 
 sudo mkdir -p "$WEBROOT/.well-known/acme-challenge"
 sudo chown -R www-data:www-data "$WEBROOT"
 
-# First keep HTTP alive and expose ACME webroot.
+# Keep HTTP alive and expose ACME webroot.
 sudo tee "$NGINX_SITE" >/dev/null <<EOF
 server {
     listen 80 default_server;
@@ -63,8 +61,7 @@ sudo systemctl reload nginx
 echo "[2/6] Verifying HTTP before certificate issuance"
 curl -fsS --max-time 5 http://127.0.0.1/ >/dev/null
 
-echo "[3/6] Requesting Let's Encrypt short-lived IP certificate"
-# Certbot 5.4+ supports --ip-address with webroot.
+echo "[3/6] Requesting/reusing Let's Encrypt short-lived IP certificate"
 sudo certbot certonly \
   --preferred-profile shortlived \
   --webroot \
@@ -74,11 +71,40 @@ sudo certbot certonly \
   --agree-tos \
   --register-unsafely-without-email
 
-CERT_DIR="/etc/letsencrypt/live/$PUBLIC_IP"
-[[ -f "$CERT_DIR/fullchain.pem" && -f "$CERT_DIR/privkey.pem" ]] || {
-  echo "ERROR: certificate files not found in $CERT_DIR"
+# Certbot may append -0001/-0002 to the certificate name after a prior lineage/name collision.
+# Resolve the actual lineage by the certificate's Domains field instead of assuming the directory name.
+CERTBOT_OUT="$(sudo certbot certificates 2>/dev/null || true)"
+CERT_PATH="$(printf '%s\n' "$CERTBOT_OUT" | awk -v ip="$PUBLIC_IP" '
+  /Certificate Name:/ {matchip=0}
+  /Domains:/ {matchip=(index($0, ip)>0)}
+  matchip && /Certificate Path:/ {sub(/^.*Certificate Path:[[:space:]]*/, ""); print; exit}
+')"
+KEY_PATH="$(printf '%s\n' "$CERTBOT_OUT" | awk -v ip="$PUBLIC_IP" '
+  /Certificate Name:/ {matchip=0}
+  /Domains:/ {matchip=(index($0, ip)>0)}
+  matchip && /Private Key Path:/ {sub(/^.*Private Key Path:[[:space:]]*/, ""); print; exit}
+')"
+
+# Fallback for unusual Certbot output: inspect matching lineage directories.
+if [[ -z "$CERT_PATH" || -z "$KEY_PATH" || ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
+  shopt -s nullglob
+  for d in /etc/letsencrypt/live/"$PUBLIC_IP" /etc/letsencrypt/live/"$PUBLIC_IP"-*; do
+    if [[ -f "$d/fullchain.pem" && -f "$d/privkey.pem" ]]; then
+      CERT_PATH="$d/fullchain.pem"
+      KEY_PATH="$d/privkey.pem"
+      break
+    fi
+  done
+  shopt -u nullglob
+fi
+
+if [[ -z "$CERT_PATH" || -z "$KEY_PATH" || ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
+  echo "ERROR: Certbot says a certificate exists, but its lineage path could not be resolved."
+  echo "Run: sudo certbot certificates"
   exit 2
-}
+fi
+
+echo "Using certificate: $CERT_PATH"
 
 echo "[4/6] Enabling HTTPS + HTTP redirect"
 sudo tee "$NGINX_SITE" >/dev/null <<EOF
@@ -103,8 +129,8 @@ server {
     listen [::]:443 ssl default_server;
     server_name _;
 
-    ssl_certificate $CERT_DIR/fullchain.pem;
-    ssl_certificate_key $CERT_DIR/privkey.pem;
+    ssl_certificate $CERT_PATH;
+    ssl_certificate_key $KEY_PATH;
     ssl_protocols TLSv1.2 TLSv1.3;
 
     location / {
@@ -120,15 +146,12 @@ EOF
 sudo nginx -t
 sudo systemctl reload nginx
 
-# Reload nginx automatically after any successful cert renewal.
 sudo mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null <<'EOF'
 #!/usr/bin/env bash
 systemctl reload nginx
 EOF
 sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
-
-# Snap Certbot normally installs this timer. Enable it when present.
 sudo systemctl enable --now snap.certbot.renew.timer 2>/dev/null || true
 
 echo "[5/6] Verifying local HTTPS"
