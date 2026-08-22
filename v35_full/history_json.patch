@@ -1,0 +1,10 @@
+--- a/history_maintainer.py
++++ b/history_maintainer.py
+@@ -203,6 +203,7 @@
+                     "solMonth": f"{month:02d}",
+                     "pageNo": "1",
+                     "numOfRows": "100",
++                    "_type": "json",
+                 },
+             )
+             rows = ensure_list(find_recursive(data, "item"))
