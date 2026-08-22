@@ -1,0 +1,100 @@
+function liveBusHtml(b){
+  const live=b.liveArrival;
+  if(!live || live.error) return '';
+  const vs=live.vehicles||[];
+  if(!vs.length) return `<div class="live-line muted">${tr('live')} ${live.flag||''} · ${tr('noVehicle')}</div>`;
+  const fmt=v=>{
+    const eta=v.etaMin!=null?tr('minutesLater',{n:v.etaMin}):tr('checking');
+    const stops=v.stopsAway!=null?` · ${tr('stopsAway',{n:v.stopsAway})}`:'';
+    const seat=v.remainSeats!=null?` · ${tr('seats',{n:v.remainSeats})}`:'';
+    return `${eta}${stops}${seat}`;
+  };
+  const catchText=b.liveRelevant
+    ? (b.liveCanCatchRail===true?`<b class="live-ok">${tr('canCatch')}</b>`:b.liveCanCatchRail===false?`<b class="live-warn">${tr('cannotCatch')}</b>`:'')
+    : `<span class="muted">${tr('farRealtime')}</span>`;
+  return `<div class="live-line"><b>${tr('live')}</b> ${vs.map(fmt).join(' / ')}${live.routeDestination?` · ${tr('direction',{name:live.routeDestination})}`:''}<br>${catchText}</div>`;
+}
+
+function subwaySegments(subway){
+  const stations=subway?.stations||[];
+  const lines=subway?.lines||[];
+  if(stations.length<2 || !lines.length) return [];
+  const out=[];
+  let start=0, line=lines[0];
+  for(let i=1;i<lines.length;i++){
+    if(lines[i]!==line){
+      out.push({line,from:stations[start],to:stations[i],stops:i-start});
+      start=i; line=lines[i];
+    }
+  }
+  out.push({line,from:stations[start],to:stations[stations.length-1],stops:stations.length-1-start});
+  return out;
+}
+
+function genericTimeline(c){
+  const rows=[];
+  const push=(kind,time,title,sub,detail)=>rows.push(timelineRow(kind,time,title,sub,detail));
+  if(c.accessStop){
+    push('walk','-',tr('currentToStop',{name:c.accessStop.name}),tr('minutes',{n:c.accessWalkMinutes||'-'}),`${Math.round(c.accessDistanceM||0)}m`);
+  }
+
+  const subwayRows=()=>{
+    const segs=subwaySegments(c.subway);
+    if(!segs.length && c.subway){
+      const from=state.origin.type==='subway'?state.origin.name:(c.transferSubwayStation||tr('subway'));
+      push('suin','-',`${from} → ${c.subway.to||state.destination.name}`,tr('subwayTo',{to:c.subway.to||state.destination.name}),tr('minutes',{n:c.subway.minutesEstimate||'-'}));
+      return;
+    }
+    segs.forEach(seg=>{
+      const line=String(seg.line||'');
+      const kind=line.includes('신분당')?'shin':'suin';
+      push(kind,'-',`${badge(line.includes('신분당')?'신분당선':'수인분당선')}${tr('subwayRide',{from:seg.from,to:seg.to})}`,tr('stations',{n:seg.stops}),tr('timetablePending'));
+    });
+  };
+
+  const busRow=()=>{
+    const from=c.originName||c.accessStop?.name||state.origin.name;
+    const to=c.transferBusStationName||c.destinationBusStationName||c.egressStop?.name||state.destination.name;
+    const mins=c.busMinutesEstimate||c.totalMinutesEstimate||'-';
+    push('bus','-',`${badge('버스')}${c.routeName?tr('busRide',{route:c.routeName}):tr('bus')}`,tr('walkFromTo',{from,to}),`${tr('busEstimate',{n:mins})}${c.busStops!=null?` · ${tr('busStops',{n:c.busStops})}`:''}`);
+  };
+
+  const mode=String(c.mode||'');
+  const subwayFirst=state.origin.type==='subway' || mode.includes('subway-to');
+  if(subwayFirst){ if(c.subway) subwayRows(); if(c.routeName) busRow(); }
+  else { if(c.routeName) busRow(); if(c.subway) subwayRows(); }
+
+  if(c.egressStop){
+    push('walk','-',tr('walkFromTo',{from:c.egressStop.name,to:tr('currentLocation')}),tr('afterAlightWalk',{n:c.egressWalkMinutes||'-'}),`${Math.round(c.egressDistanceM||0)}m`);
+  }
+  push('finish','-',tr('arrived',{name:displayPlace(state.destination)}),tr('fromOrigin',{name:displayPlace(state.origin)}),`${state.lang==='ko'?'전체 구조 예상':state.lang==='ja'?'全体構造推定':'Whole-trip structural estimate'} ${formatDuration(c.totalMinutesEstimate)}`);
+  return `<div class="timeline-v2">${rows.join('')}</div>`;
+}
+
+function busCandidateHtml(b,i){
+  const rawBoard=b.recommendedBoarding||b.latestBoarding||b.originMedian||"-";
+  const board=b.recommendedBoardingIsCutoff?tr('beforeTime',{time:rawBoard}):rawBoard;
+  const dest=b.estimatedGosaek||b.estimatedDestination||"-";
+  const walk=b.accessWalkMinutes?` · ${tr('walkTo',{name:b.accessStop?.name||tr('bus')})} ${tr('minutes',{n:b.accessWalkMinutes})}`:"";
+  const stop=b.accessStop?`<br>${tr('gps')} · ${b.accessStop.name} (${Math.round(b.accessDistanceM||0)}m)`:"";
+  const hist=b.historyAvailable
+    ? `${b.historyReliable?tr('historyReliable',{n:b.samples||0}):tr('historyReference',{n:b.samples||0})}${b.travelP90Min?` · ${tr('p90Travel',{n:b.travelP90Min})}`:''}`
+    : `${tr('routeStructure')}${b.headway?.minHeadway?` · ${state.lang==='ko'?'배차':state.lang==='ja'?'運行間隔':'headway'} ${b.headway.minHeadway}~${b.headway.maxHeadway} min`:""}`;
+  const suffix=state.lang==='ko'?'번':'';
+  return `<div class="bus-candidate ${i===0?"best":""}">
+    <div class="route">${badge("버스")}${b.routeName}${suffix} ${i===0?`· ${state.lang==='ko'?'추천':state.lang==='ja'?'推奨':'Recommended'}`:""}</div>
+    <div class="hist"><b>${board}</b> → ${dest} · ${tr('minutes',{n:b.travelMedianMin||"-"})}${walk}${stop}<br>${hist}</div>
+    ${liveBusHtml(b)}
+  </div>`;
+}
+
+function renderReverse(x){
+  const shin=x.shinbundang,suin=x.suinBundang;
+  const buses=x.busCandidates||[];
+  const best=x.realtimeRecommendedBus||x.recommendedBus||buses[0]||{};
+  const rawBoard=best.recommendedBoarding||best.latestBoarding||"-";
+  const board=best.recommendedBoardingIsCutoff?tr('beforeTime',{time:rawBoard}):rawBoard;
+  const busDest=best.estimatedGosaek||best.estimatedDestination||x.gosaekPlatformDeadline||"-";
+  const access=best.accessWalkMinutes?timelineRow(
+    "walk",x.recommendedLeaveTime||"-",tr('leaveCurrent'),tr('walkTo',{name:best.accessStop?.name||tr('bus')}),tr('minutes',{n:best.accessWalkMinutes})+` · ${Math.round(best.accessDistanceM||0)}m`
+  ):"";
