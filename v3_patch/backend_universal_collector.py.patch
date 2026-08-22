@@ -1,0 +1,75 @@
+--- a/backend/universal_collector.py
++++ b/backend/universal_collector.py
+@@ -5,7 +5,7 @@
+ 
+ from backend.api_client import request_json, find_recursive, ensure_list
+ from backend.transit_db import connect, init_db
+-from backend.watchlist import list_watch
++from backend.watchlist import list_watch, upsert_watch
+ from backend.lazy_metadata import hydrate_route
+ 
+ LOCATION_URL = 'https://apis.data.go.kr/6410000/buslocationservice/v2/getBusLocationListv2'
+@@ -14,8 +14,51 @@
+ IDLE = max(5, int(os.getenv('COLLECTOR_IDLE_SECONDS', '15')))
+ MAX_GAP = max(1, int(os.getenv('COLLECTOR_INTERPOLATE_MAX_SEQ_GAP', '20')))
+ MAX_WATCH = max(1, int(os.getenv('COLLECTOR_MAX_WATCH_ROUTES', '1000')))
++AUTO_SEED_ROUTE_NAMES = [x.strip() for x in os.getenv('COLLECTOR_AUTO_SEED_ROUTE_NAMES', '46,720,700-2,1007').split(',') if x.strip()]
++AUTO_SEED_STATION_IDS = [x.strip() for x in os.getenv('COLLECTOR_AUTO_SEED_STATION_IDS', '233000945,201000023').split(',') if x.strip()]
++ROUTE_SEARCH_URL = 'https://apis.data.go.kr/6410000/busrouteservice/v2/getBusRouteListv2'
++STATION_ROUTES_URL = 'https://apis.data.go.kr/6410000/busstationservice/v2/getBusStationViaRouteListv2'
+ 
+ 
++
++def auto_seed_watchlist():
++    """Seed useful routes at collector startup so collection does not depend on a user search."""
++    added = 0
++    for name in AUTO_SEED_ROUTE_NAMES:
++        try:
++            data = request_json(ROUTE_SEARCH_URL, {'format': 'json', 'keyword': name})
++            rows = ensure_list(find_recursive(data, 'busRouteList'))
++            exact = [r for r in rows if str(r.get('routeName') or '').strip() == name]
++            for r in (exact or rows[:2]):
++                rid = str(r.get('routeId') or '').strip()
++                if not rid:
++                    continue
++                rname = str(r.get('routeName') or name).strip()
++                upsert_watch(rid, rname or None, 88, 'auto-seed-route')
++                try:
++                    hydrate_route(rid, rname)
++                except Exception:
++                    pass
++                added += 1
++        except Exception as exc:
++            print('auto-seed route failed', name, exc)
++
++    for sid in AUTO_SEED_STATION_IDS:
++        try:
++            data = request_json(STATION_ROUTES_URL, {'format': 'json', 'stationId': sid})
++            rows = ensure_list(find_recursive(data, 'busRouteList'))
++            for r in rows[:60]:
++                rid = str(r.get('routeId') or '').strip()
++                if not rid:
++                    continue
++                rname = str(r.get('routeName') or '').strip()
++                upsert_watch(rid, rname or None, 82, 'auto-seed-station')
++                added += 1
++        except Exception as exc:
++            print('auto-seed station failed', sid, exc)
++    print(f'auto-seed watchlist: +{added} registrations / routes={AUTO_SEED_ROUTE_NAMES} / stations={AUTO_SEED_STATION_IDS}')
++    return added
++
+ def day_type(dt):
+     return 'saturday' if dt.weekday() == 5 else 'holiday' if dt.weekday() == 6 else 'weekday'
+ 
+@@ -260,8 +303,11 @@
+     print(f'min call gap={MIN_CALL_GAP}s / daily location-call limit={DAILY_LIMIT}')
+     print('검색된 후보노선은 watchlist에 자동 등록되고, 남은 일일 호출량을 하루에 분산합니다.')
+     print('한 routeId 호출로 해당 노선의 운행차량 전체를 관측합니다.')
++    print('사용자 조회가 없어도 기본 출퇴근 노선/정류장을 자동 seed 합니다.')
+     print('Ctrl+C 종료\n')
+ 
++    auto_seed_watchlist()
++
+     try:
+         while True:
+             watches = list_watch(MAX_WATCH, True)
