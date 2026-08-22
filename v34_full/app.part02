@@ -1,0 +1,100 @@
+  if(!navigator.geolocation)return alert(tr("noGeo"));
+  const btn=role==="origin"?$("#originGps"):$("#destinationGps");
+  const old=btn.textContent;btn.textContent=tr("gpsChecking");btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      const lat=pos.coords.latitude,lon=pos.coords.longitude;
+      let nearby=[];
+      try{
+        const x=await api(`/api/nearby/bus-stations?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&limit=6&watch=true`);
+        nearby=x.items||[];
+      }catch(e){ console.warn("nearby stop lookup failed",e); }
+      const nearest=nearby[0];
+      const item={
+        type:"coordinate",id:`${lat.toFixed(6)},${lon.toFixed(6)}`,name:tr("currentLocation"),
+        label:nearest?`${tr("currentLocation")} · ${nearest.name} ${Math.round(nearest.distanceM||0)}m`:`${tr("currentLocation")} · ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+        lat,lon,accuracy:pos.coords.accuracy,nearbyStops:nearby
+      };
+      if(role==="origin"){state.origin=item;$("#originInput").value=tr("currentLocation");}else{state.destination=item;$("#destinationInput").value=tr("currentLocation");}
+      syncSelected();
+    }finally{btn.textContent=old;btn.disabled=false;}
+  },err=>{
+    btn.textContent=old;btn.disabled=false;
+    const msg=err.code===1?tr("gpsDenied"):err.code===3?tr("gpsTimeout"):tr("gpsFail");
+    alert(msg);
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+}
+$("#originGps").onclick=()=>useGps("origin");$("#destinationGps").onclick=()=>useGps("destination");
+
+function setMode(mode){
+  state.mode=mode; if(mode!=="forward") state.departNow=false;
+  document.querySelectorAll(".mode-tab").forEach(x=>x.classList.toggle("active",x.dataset.mode===mode));
+  const tc=$("#timeControl");
+
+  if(mode==="reverse"){
+    tc.hidden=false;
+    $("#timeLabel").textContent=tr("arriveTimeLabel");
+    $("#planBtn").textContent=tr("planReverse");
+    $("#resultKicker").textContent=tr("resultReverse");
+    $("#nowBtn").hidden=true;
+  }else if(mode==="forward"){
+    tc.hidden=false;
+    $("#timeLabel").textContent=tr("departTimeLabel");
+    $("#planBtn").textContent=tr("planForward");
+    $("#resultKicker").textContent=tr("resultForward");
+    $("#nowBtn").hidden=false;
+  }else if(mode==="first"){
+    tc.hidden=true;
+    $("#planBtn").textContent=tr("planFirst");
+    $("#resultKicker").textContent=tr("resultFirst");
+    $("#nowBtn").hidden=true;
+  }else{
+    tc.hidden=true;
+    $("#planBtn").textContent=tr("planLast");
+    $("#resultKicker").textContent=tr("resultLast");
+    $("#nowBtn").hidden=true;
+  }
+}
+document.querySelectorAll(".mode-tab").forEach(x=>x.onclick=()=>setMode(x.dataset.mode));
+$("#nowBtn").onclick=()=>{
+  const d=new Date();state.departNow=true;$("#target").value=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  $("#planBtn").click();
+};
+$("#target").addEventListener("input",()=>{if(state.mode==="forward")state.departNow=false;});
+
+function showLoading(){
+  $("#resultCard").hidden=false;$("#result").innerHTML=`<strong class="big">${tr("loading")}</strong>`;
+  requestAnimationFrame(()=>$("#resultCard").scrollIntoView({behavior:"smooth",block:"start"}));
+}
+
+function leg(label,big,small){
+  return `<div class="rail-leg"><span>${label}</span><b>${big}</b><span>${small||""}</span></div>`;
+}
+
+function badge(line){
+  if(line==="신분당선")return `<span class="line-badge shin">${tr("shin")}</span>`;
+  if(line==="수인분당선")return `<span class="line-badge suin">${tr("suin")}</span>`;
+  if(line==="버스")return `<span class="line-badge bus">${tr("bus")}</span>`;
+  return `<span class="line-badge transfer">${line}</span>`;
+}
+
+function timelineRow(kind, timeText, titleHtml, subtitleHtml="", detailHtml="", isLast=false){
+  return `
+    <div class="timeline-row ${kind}">
+      <div class="timeline-timebox">
+        <div class="clock">${timeText || "-"}</div>
+        <div class="mini">${kind==="walk"?tr("walk"):kind==="bus"?tr("bus"):kind==="suin"?tr("rail1"):kind==="shin"?tr("rail2"):tr("arrival")}</div>
+      </div>
+      <div class="timeline-track">
+        <div class="shaft"></div>
+        <div class="node"></div>
+      </div>
+      <div class="timeline-card">
+        <div class="title">${titleHtml}</div>
+        ${subtitleHtml ? `<div class="subtitle">${subtitleHtml}</div>` : ""}
+        ${detailHtml ? `<div class="detail">${detailHtml}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+
