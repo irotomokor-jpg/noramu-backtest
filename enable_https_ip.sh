@@ -29,7 +29,6 @@ certbot --version || true
 sudo mkdir -p "$WEBROOT/.well-known/acme-challenge"
 sudo chown -R www-data:www-data "$WEBROOT"
 
-# Keep HTTP alive and expose ACME webroot.
 sudo tee "$NGINX_SITE" >/dev/null <<EOF
 server {
     listen 80 default_server;
@@ -71,35 +70,26 @@ sudo certbot certonly \
   --agree-tos \
   --register-unsafely-without-email
 
-# Certbot may append -0001/-0002 to the certificate name after a prior lineage/name collision.
-# Resolve the actual lineage by the certificate's Domains field instead of assuming the directory name.
 CERTBOT_OUT="$(sudo certbot certificates 2>/dev/null || true)"
 CERT_PATH="$(printf '%s\n' "$CERTBOT_OUT" | awk -v ip="$PUBLIC_IP" '
   /Certificate Name:/ {matchip=0}
-  /Domains:/ {matchip=(index($0, ip)>0)}
+  /Identifiers:/ {matchip=(index($0, ip)>0)}
   matchip && /Certificate Path:/ {sub(/^.*Certificate Path:[[:space:]]*/, ""); print; exit}
 ')"
 KEY_PATH="$(printf '%s\n' "$CERTBOT_OUT" | awk -v ip="$PUBLIC_IP" '
   /Certificate Name:/ {matchip=0}
-  /Domains:/ {matchip=(index($0, ip)>0)}
+  /Identifiers:/ {matchip=(index($0, ip)>0)}
   matchip && /Private Key Path:/ {sub(/^.*Private Key Path:[[:space:]]*/, ""); print; exit}
 ')"
 
-# Fallback for unusual Certbot output: inspect matching lineage directories.
-if [[ -z "$CERT_PATH" || -z "$KEY_PATH" || ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
-  shopt -s nullglob
-  for d in /etc/letsencrypt/live/"$PUBLIC_IP" /etc/letsencrypt/live/"$PUBLIC_IP"-*; do
-    if [[ -f "$d/fullchain.pem" && -f "$d/privkey.pem" ]]; then
-      CERT_PATH="$d/fullchain.pem"
-      KEY_PATH="$d/privkey.pem"
-      break
-    fi
-  done
-  shopt -u nullglob
-fi
+# /etc/letsencrypt is root-restricted, so validate through sudo rather than user-level -f checks.
+if [[ -z "$CERT_PATH" ]]; then CERT_PATH="/etc/letsencrypt/live/$PUBLIC_IP/fullchain.pem"; fi
+if [[ -z "$KEY_PATH" ]]; then KEY_PATH="/etc/letsencrypt/live/$PUBLIC_IP/privkey.pem"; fi
 
-if [[ -z "$CERT_PATH" || -z "$KEY_PATH" || ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
-  echo "ERROR: Certbot says a certificate exists, but its lineage path could not be resolved."
+if ! sudo test -f "$CERT_PATH" || ! sudo test -f "$KEY_PATH"; then
+  echo "ERROR: certificate files could not be verified."
+  echo "Certificate Path: $CERT_PATH"
+  echo "Private Key Path: $KEY_PATH"
   echo "Run: sudo certbot certificates"
   exit 2
 fi
