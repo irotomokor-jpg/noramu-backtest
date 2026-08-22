@@ -1,0 +1,116 @@
+  const walk=b.accessWalkMinutes?` · ${tr('walkTo',{name:b.accessStop?.name||tr('bus')})} ${tr('minutes',{n:b.accessWalkMinutes})}`:"";
+  const stop=b.accessStop?`<br>${tr('gps')} · ${b.accessStop.name} (${Math.round(b.accessDistanceM||0)}m)`:"";
+  const hist=b.historyAvailable
+    ? `${state.lang==='ko'?`과거 이력 ${b.samples||0}일`:state.lang==='ja'?`過去履歴 ${b.samples||0}日`:`History ${b.samples||0} days`}`
+    : `${tr('routeStructure')}${b.headway?.minHeadway?` · ${state.lang==='ko'?'배차':state.lang==='ja'?'運行間隔':'headway'} ${b.headway.minHeadway}~${b.headway.maxHeadway} min`:""}`;
+  const suffix=state.lang==='ko'?'번':'';
+  return `<div class="bus-candidate ${i===0?"best":""}">
+    <div class="route">${badge("버스")}${b.routeName}${suffix} ${i===0?`· ${state.lang==='ko'?'추천':state.lang==='ja'?'推奨':'Recommended'}`:""}</div>
+    <div class="hist"><b>${board}</b> → ${dest} · ${tr('minutes',{n:b.travelMedianMin||"-"})}${walk}${stop}<br>${hist}</div>
+    ${liveBusHtml(b)}
+  </div>`;
+}
+
+function renderReverse(x){
+  const shin=x.shinbundang,suin=x.suinBundang;
+  const buses=x.busCandidates||[];
+  const best=x.realtimeRecommendedBus||x.recommendedBus||buses[0]||{};
+  const board=best.recommendedBoarding||best.latestBoarding||"-";
+  const busDest=best.estimatedGosaek||best.estimatedDestination||x.gosaekPlatformDeadline||"-";
+  const access=best.accessWalkMinutes?timelineRow(
+    "walk",x.recommendedLeaveTime||"-",tr('leaveCurrent'),tr('walkTo',{name:best.accessStop?.name||tr('bus')}),tr('minutes',{n:best.accessWalkMinutes})+` · ${Math.round(best.accessDistanceM||0)}m`
+  ):"";
+  const slackText=x.goalSlackMin>=0?tr('slack',{n:x.goalSlackMin}):tr('late',{n:Math.abs(x.goalSlackMin)});
+  const timeline = `
+    <div class="timeline-v2">
+      ${access}
+      ${timelineRow(
+        "bus", board,
+        `${badge("버스")}${best.routeName?tr('busRide',{route:best.routeName}):tr('bus')}`,
+        `${busDest} · ${best.transferBusStationName||"고색역·고색초교"}`,
+        `${tr('minutes',{n:best.travelMedianMin||'-'})} · ${tr('busStops',{n:best.busStops??'-'})}`
+      )}
+      ${timelineRow(
+        "suin", suin.departure,
+        `${badge("수인분당선")}고색 → 정자`,
+        `${suin.arrival} · ${tr('suin')}`,
+        tr('minutes',{n:suin.runtimeMin||'-'})
+      )}
+      ${timelineRow(
+        "shin", shin.departure,
+        `${badge("신분당선")}정자 → 판교`,
+        `${shin.arrival} · ${tr('shin')}`,
+        tr('minutes',{n:shin.runtimeMin||'-'})
+      )}
+      ${timelineRow(
+        "finish", x.finalArrival||shin.arrival,
+        tr('arrived',{name:state.destination.name}),
+        `${x.target} · ${slackText}`,
+        `${tr('totalAbout')} ${x.totalMinutesEstimate??"-"} min`
+      )}
+    </div>`;
+
+  const liveRec=x.realtimeRecommendedBus;
+  const liveVeh=((liveRec?.liveArrival||{}).vehicles||[])[0];
+  const liveBanner=liveRec&&liveVeh?`<div class="live-recommend"><b>${tr('liveTakeNow')}</b> · ${liveRec.routeName}${state.lang==='ko'?'번':''} · ${tr('minutesLater',{n:liveVeh.etaMin??'-'})} · ${tr('targetConnection')}</div>`:'';
+  $("#result").innerHTML=`
+    <strong class="big">${state.origin.name} → ${state.destination.name}</strong>
+    <div class="path-summary"><b>${tr('arriveBySummary',{target:x.target})}</b> ${tr('recommendedLeave')} <b>${x.recommendedLeaveTime||board}</b> · ${tr('finalArrival')} <b>${x.finalArrival||shin.arrival}</b> · ${tr('totalAbout')} <b>${x.totalMinutesEstimate??"-"} min</b> · <b>${slackText}</b></div>
+    ${liveBanner}
+    ${timeline}
+    <h2>${tr('busCandidates')}</h2>
+    ${buses.length?buses.map(busCandidateHtml).join(""):`<div class="warning-note">${tr('noBusCandidate')}</div>`}
+    <div class="status-note">${x.plannerNote||""}<br>${tr('live')}: ${x.realtimeCheckedAt||'-'} · Rail: ${x.railSource} · ${x.railPairing||"-"}</div>`;
+}
+
+
+function renderFirstLast(x){
+  const s=x.suinBundang,h=x.shinbundang;
+  const title=x.criterion==="first" ? "첫차 기준" : "막차 기준";
+  const busWindows=(x.busServiceWindows||[]).map(b=>`
+    <div class="service-window">
+      <div class="route">${badge("버스")}${b.routeName}번</div>
+      <div class="times">
+        와우지구 추정 첫차 ${b.estimatedWowFirst||"-"} · 추정 막차 ${b.estimatedWowLast||"-"}<br>
+        공식 기·종점 첫차 ${b.officialFirstTerminal||"-"} · 막차 ${b.officialLastTerminal||"-"}
+        ${b.estimatedGosaekTravelMin!=null?`<br>고색까지 구조상 약 ${b.estimatedGosaekTravelMin}분`:""}
+      </div>
+    </div>`).join("");
+
+  const timeline = `
+    <div class="timeline-v2">
+      ${timelineRow(
+        "bus",
+        x.gosaekPlatformDeadline || "-",
+        `와우지구 출발 준비`,
+        `${badge("버스")}버스 탑승`,
+        `고색역 승강장 ${x.gosaekPlatformDeadline}까지 도착 필요`
+      )}
+      ${timelineRow(
+        "suin",
+        s.departure,
+        `${badge("수인분당선")}고색역 출발`,
+        `${s.arrival} 정자역 도착`,
+        `${s.serviceType||s.terminal||""}`
+      )}
+      ${timelineRow(
+        "shin",
+        h.departure,
+        `${badge("신분당선")}정자역 출발`,
+        `${h.arrival} 판교역 도착`,
+        `${x.criterion==="first"?"가장 이른 연결":"가장 늦은 연결"}`
+      )}
+      ${timelineRow(
+        "finish",
+        x.finalArrival,
+        `판교역 도착`,
+        `${x.criterion==="first"?"첫차 기준 최종 도착":"막차 기준 최종 도착"}`,
+        `철도 데이터: ${x.railSource}`
+      )}
+    </div>`;
+
+  $("#result").innerHTML=`
+    <strong class="big">${title} · 와우지구 → 판교역</strong>
+    <div class="path-summary">${x.criterion==="first"?"가장 이른 최종 도착이 가능한 연결":"서비스 종료 전에 가능한 가장 늦은 연결"}을 찾았습니다.</div>
+    ${timeline}
+    <h2>버스 첫차·막차 운행창</h2>
