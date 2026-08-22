@@ -1,0 +1,254 @@
+--- a/backend/app.py	2026-08-22 10:15:12.420938671 +0000
++++ b/backend/app.py	2026-08-22 10:39:55.032225501 +0000
+@@ -1,6 +1,8 @@
+ from __future__ import annotations
+ 
++import os
+ import re
++import requests
+ from datetime import datetime
+ from zoneinfo import ZoneInfo
+ from pathlib import Path
+@@ -16,8 +18,8 @@
+     hm_to_sec as db_hm_to_sec, sec_to_hm as db_sec_to_hm,
+ )
+ from backend.free_router import FreeRouter, LINES, norm_name
+-from backend.bus_history import station_pattern, rank_for_deadline, coverage_summary
+-from backend.rail_db import latest_arrival_before, segment_trips
++from backend.bus_history import station_pattern, paired_trip_stats, rank_for_deadline, coverage_summary
++from backend.rail_db import latest_arrival_before, earliest_departure_after, segment_trips
+ from backend.watchlist import (
+     register_router_result, watch_route_names, list_watch,
+     set_enabled, upsert_watch, log_search,
+@@ -52,6 +54,25 @@
+ JEONGJA_SUIN_ID = 'MTRKRK1K230'
+ JEONGJA_SHINBUNDANG_ID = 'MTRDXD14312'
+ 
++SEOUL_SUBWAY_REALTIME_BASE = 'https://swopenAPI.seoul.go.kr/api/subway'
++
++# Official foreign station names for the benchmark corridor. Unknown stations stay
++# in the provider-supplied Korean name rather than inventing a translation.
++OFFICIAL_STATION_NAMES = {
++    '고색': {'ko':'고색', 'en':'Gosaek', 'ja':'コセク'},
++    '수원': {'ko':'수원', 'en':'Suwon', 'ja':'スウォン'},
++    '정자': {'ko':'정자', 'en':'Jeongja', 'ja':'チョンジャ'},
++    '판교': {'ko':'판교(판교테크노밸리)', 'en':'Pangyo (Pangyo Techno Valley)', 'ja':'パンギョ（パンギョテクノバレー）'},
++    '강남': {'ko':'강남', 'en':'Gangnam', 'ja':'カンナム'},
++    '양재': {'ko':'양재', 'en':'Yangjae', 'ja':'ヤンジェ'},
++    '미금': {'ko':'미금', 'en':'Migeum', 'ja':'ミグム'},
++}
++
++def official_station_names(name: str):
++    key = normalize_station(name)
++    return OFFICIAL_STATION_NAMES.get(key, {'ko': str(name or '').strip()})
++
++
+ 
+ def tago_request(operation: str, params: dict):
+     last = None
+@@ -238,6 +259,74 @@
+     return max(candidates, key=lambda x: x[key]) if candidates else None
+ 
+ 
++def earliest_after(rows, start, key='departureSec'):
++    candidates = [x for x in rows if x[key] >= start]
++    return min(candidates, key=lambda x: x[key]) if candidates else None
++
++
++def forward_rail_chain_pangyo(start_sec: int, pangyo_station_id: str = '', transfer_buffer_min: int = 3):
++    """Next scheduled Gosaek→Jeongja→Pangyo connection after reaching Gosaek."""
++    suin = earliest_departure_after('수인', '고색', '정자', int(start_sec), 'weekday')
++    shin = None
++    source = 'KR-rail-local-db'
++    if suin:
++        shin = earliest_departure_after('신분당', '정자', '판교', int(suin['arrivalSec']) + transfer_buffer_min*60, 'weekday')
++    if suin and shin:
++        return {'suinBundang':suin, 'shinbundang':shin, 'railSource':source, 'railScheduleBasis':'KR national rail timetable'}
++
++    source = 'TAGO-fallback'
++    gs = {'id': GOSAEK_SUBWAY_ID, 'name': '고색', 'route': '수인분당'}
++    jbs = {'id': JEONGJA_SUIN_ID, 'name': '정자', 'route': '수인분당'}
++    js = {'id': JEONGJA_SHINBUNDANG_ID, 'name': '정자', 'route': '신분당'}
++    ps = {'id': pangyo_station_id, 'name': '판교', 'route': '신분당'} if pangyo_station_id else search_subway_exact('판교', '신분당')
++    if not ps:
++        return None
++    suin = earliest_after(pair_tago(gs, jbs, 32, 45, 36.5), int(start_sec))
++    if not suin:
++        return None
++    shin = earliest_after(pair_tago(js, ps, 3, 9, 6.0), int(suin['arrivalSec']) + transfer_buffer_min*60)
++    if not shin:
++        return None
++    return {'suinBundang':suin, 'shinbundang':shin, 'railSource':source, 'railScheduleBasis':'TAGO official station timetable'}
++
++
++def seoul_subway_realtime(station_name: str):
++    """Optional Seoul TOPIS realtime arrival. Empty when no separate Seoul key is configured."""
++    key = os.getenv('SEOUL_SUBWAY_REALTIME_KEY', '').strip()
++    if not key:
++        return {'enabled': False, 'items': [], 'reason': 'SEOUL_SUBWAY_REALTIME_KEY not configured'}
++    try:
++        url = f"{SEOUL_SUBWAY_REALTIME_BASE}/{key}/json/realtimeStationArrival/0/20/{station_name}"
++        r = requests.get(url, timeout=8)
++        r.raise_for_status()
++        data = r.json()
++        rows = data.get('realtimeArrivalList') or []
++        items=[]
++        for x in rows:
++            items.append({
++                'stationName': str(x.get('statnNm') or station_name),
++                'line': str(x.get('trainLineNm') or x.get('subwayId') or ''),
++                'direction': str(x.get('updnLine') or ''),
++                'etaSec': _int_or_none(x.get('barvlDt')),
++                'message': str(x.get('arvlMsg2') or ''),
++                'serviceType': '급행' if str(x.get('btrainSttus') or '') == '급행' else None,
++                'receivedAt': str(x.get('recptnDt') or ''),
++            })
++        return {'enabled': True, 'items': items}
++    except Exception as exc:
++        return {'enabled': True, 'items': [], 'error': str(exc)}
++
++
++@app.get('/api/i18n/station-name')
++def station_name_i18n(name: str):
++    return official_station_names(name)
++
++
++@app.get('/api/realtime/subway')
++def realtime_subway(station: str):
++    return seoul_subway_realtime(station)
++
++
+ def local_bus_search(q: str):
+     pattern = f'%{q}%'
+     with connect() as con:
+@@ -601,7 +690,7 @@
+ 
+ def structural_bus_candidates(origin_station_id: str, deadline_sec: int, route_names=None):
+     """Build truthful fallback boarding candidates when historical arrivals are not ready."""
+-    route_names = route_names or ['46', '720', '700-2', '1007']
++    route_names = route_names or ['46', '720', '700-1', '700-2', '1007']
+     router = FreeRouter(lambda u,p: request_json(u,p), find_recursive, ensure_list)
+     allowed = {str(x) for x in route_names}
+     try:
+@@ -695,7 +784,7 @@
+ 
+     deadline = suin['departureSec'] - station_buffer_min * 60
+     guess = deadline - 20 * 60
+-    route_names = ['46', '720', '700-2', '1007']
++    route_names = ['46', '720', '700-1', '700-2', '1007']
+     watch_route_names(route_names, 90, 'benchmark-search')
+     history = rank_for_deadline(
+         route_names,
+@@ -808,18 +897,103 @@
+ 
+ 
+ @app.get('/api/planner/forward-pangyo')
+-def forward_pangyo(depart='07:10', origin_station_id=''):
+-    sec = target_to_seconds(depart)
++def forward_pangyo(depart='07:10', origin_station_id='', pangyo_station_id='', now: bool = False, station_buffer_min: int = 3, transfer_buffer_min: int = 3):
++    """Depart-at/now planner: realtime bus first, then the next fixed rail departures."""
++    tz = ZoneInfo('Asia/Seoul')
++    now_dt = datetime.now(tz)
++    now_sec = now_dt.hour*3600 + now_dt.minute*60 + now_dt.second
++    requested_sec = now_sec if now else target_to_seconds(depart)
++    requested_abs = requested_sec
++    # Realtime is only meaningful for a near-current departure. If the selected
++    # clock time is already far in the past, interpret it as the next day.
++    if not now and requested_abs < now_sec - 2*3600:
++        requested_abs += 86400
++
++    route_names = ['46', '720', '700-1', '700-2', '1007']
+     watched = watch_routes_serving_station(origin_station_id, 90, 'forward-origin') if origin_station_id else {'count':0,'routes':[]}
+-    watch_route_names(['46', '1007', '700-2'], 90, 'benchmark-search')
+-    patterns = [station_pattern(r, '와우지구', sec, 45, 'weekday') for r in ['46', '1007', '700-2']]
++    watch_route_names(route_names, 90, 'benchmark-search')
++
++    # Route structure gives stop order/destination; historical pairs give a better
++    # travel-time distribution without using an unrelated historical clock time.
++    structural = structural_bus_candidates(origin_station_id, requested_sec + 4*3600, route_names) if origin_station_id else []
++    for c in structural:
++        stats = paired_trip_stats(c['routeName'], '와우지구', '고색역.고색초교.태산아파트', requested_sec % 86400, 20, 'weekday')
++        if stats.get('samples'):
++            c['historySamples'] = int(stats.get('samples') or 0)
++            c['travelMedianMin'] = stats.get('travelMedianMin') or c.get('travelMedianMin')
++            c['travelP80Min'] = stats.get('travelP80Min')
++            c['travelP90Min'] = stats.get('travelP90Min')
++    live_meta = attach_live_bus_arrivals(structural, None, 6)
++
++    journeys=[]
++    for c in live_meta['candidates']:
++        live = c.get('liveArrival') or {}
++        vehicles = live.get('vehicles') or []
++        chosen=None
++        board_abs=None
++        # For depart-at, ignore buses that arrive before the selected departure time.
++        for v in vehicles:
++            eta = _int_or_none(v.get('etaSec'))
++            if eta is None:
++                continue
++            cand = now_sec + eta
++            if cand >= requested_abs - 30:
++                chosen=v; board_abs=cand; break
++        if chosen is None and now and vehicles:
++            chosen=vehicles[0]
++            board_abs=now_sec + int(chosen.get('etaSec') or 0)
++
++        if board_abs is None:
++            continue
++        travel_min = float(c.get('travelMedianMin') or 0)
++        if travel_min <= 0:
++            continue
++        gosaek_abs = board_abs + int(travel_min*60)
++        rail = forward_rail_chain_pangyo(int(gosaek_abs + station_buffer_min*60), pangyo_station_id, transfer_buffer_min)
++        if not rail:
++            continue
++        shin = rail['shinbundang']; suin=rail['suinBundang']
++        final_abs = int(shin['arrivalSec'])
++        while final_abs < gosaek_abs - 3600:
++            final_abs += 86400
++        total_min = round((final_abs - requested_abs)/60, 1)
++        x=dict(c)
++        x.update({
++            'chosenVehicle': chosen,
++            'boardSec': int(board_abs),
++            'boardTime': db_sec_to_hm(int(board_abs), True),
++            'estimatedGosaekSec': int(gosaek_abs),
++            'estimatedGosaek': db_sec_to_hm(int(gosaek_abs), True),
++            'suinBundang': suin,
++            'shinbundang': shin,
++            'railSource': rail['railSource'],
++            'railScheduleBasis': rail['railScheduleBasis'],
++            'finalArrival': db_sec_to_hm(final_abs, True),
++            'finalArrivalSec': final_abs,
++            'totalMinutesEstimate': total_min,
++        })
++        journeys.append(x)
++
++    journeys.sort(key=lambda x:(int(x.get('finalArrivalSec') or 10**9), int((x.get('chosenVehicle') or {}).get('etaSec') or 10**9)))
++    recommended = journeys[0] if journeys else None
++    patterns = [station_pattern(r, '와우지구', requested_sec % 86400, 20, 'weekday') for r in route_names]
+     return {
+-        'mode': 'depart-at',
+-        'depart': depart,
++        'mode':'depart-now' if now else 'depart-at',
++        'depart': db_sec_to_hm(requested_abs, True),
++        'requestedNow': bool(now),
++        'realtimeCheckedAt': live_meta.get('checkedAt'),
++        'realtimeCalls': live_meta.get('calls',0),
++        'journeys': journeys,
++        'recommendedJourney': recommended,
+         'busPatterns': patterns,
+-        'historyReady': any(x.get('samples', 0) > 0 for x in patterns),
+-        'message': '실운행 이력이 쌓이면 버스 실제 도착→고색 실제 도착→다음 철도편을 순방향으로 연결합니다.',
+-        'watchRoutesAdded': watched.get('count', 0),
++        'historyReady': any(x.get('samples',0)>0 for x in patterns),
++        'subwayRealtime': {
++            'gosaek': seoul_subway_realtime('고색'),
++            'jeongja': seoul_subway_realtime('정자'),
++            'note': '서울 TOPIS 실시간 지하철 API는 별도 무료 키가 있을 때 사용하며, 미지원/미설정 구간은 공식 시간표로 다음 열차를 선택합니다.',
++        },
++        'message':'출발시간/지금출발은 공식 실시간 버스 도착을 먼저 선택하고, 버스의 고색 예상도착 이후 탈 수 있는 실제 지하철 시간표를 순방향으로 연결합니다.',
++        'watchRoutesAdded': watched.get('count',0),
+     }
+ 
+ 
