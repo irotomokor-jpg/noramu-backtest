@@ -1,0 +1,190 @@
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -2,6 +2,7 @@
+ 
+ import re
+ from datetime import datetime
++from zoneinfo import ZoneInfo
+ from pathlib import Path
+ 
+ from fastapi import FastAPI, HTTPException
+@@ -46,6 +47,7 @@
+     'https://apis.data.go.kr/1613000/SubwayInfoService',
+ ]
+ BUS_STATION_BASE = 'https://apis.data.go.kr/6410000/busstationservice/v2'
++BUS_ARRIVAL_BASE = 'https://apis.data.go.kr/6410000/busarrivalservice/v2'
+ GOSAEK_SUBWAY_ID = 'MTRKRK1K246'
+ JEONGJA_SUIN_ID = 'MTRKRK1K230'
+ JEONGJA_SHINBUNDANG_ID = 'MTRDXD14312'
+@@ -428,10 +430,126 @@
+             'mode': f'{origin_type}-to-{destination_type}',
+         }
+ 
++    # When the journey starts with a bus (selected stop or GPS), attach official
++    # realtime arrival snapshots to the top candidates so the UI can say what to board now.
++    if result.get('candidates') and origin_type in ('bus', 'coordinate'):
++        if origin_type == 'bus':
++            for c in result.get('candidates', []):
++                c.setdefault('originStationId', origin_id)
++        live_meta = attach_live_bus_arrivals(result.get('candidates', []), None, 4)
++        result['candidates'] = live_meta['candidates']
++        result['realtimeCheckedAt'] = live_meta.get('checkedAt')
++        result['realtimeCalls'] = live_meta.get('calls', 0)
++
+     register_router_result(result, 75)
+     return result
+ 
+ 
++def _int_or_none(v):
++    try:
++        if v is None or str(v).strip() == '':
++            return None
++        return int(float(v))
++    except Exception:
++        return None
++
++
++def live_bus_arrival(route_id: str, station_id: str, sta_order: int | str | None):
++    """Official Gyeonggi BMS arrival snapshot for one route at one stop."""
++    if not route_id or not station_id or sta_order in (None, '', 0, '0'):
++        return None
++    data = request_json(
++        f'{BUS_ARRIVAL_BASE}/getBusArrivalItemv2',
++        {'format': 'json', 'stationId': station_id, 'routeId': route_id, 'staOrder': sta_order},
++    )
++    item = find_recursive(data, 'busArrivalItem')
++    if isinstance(item, list):
++        item = item[0] if item else None
++    if not isinstance(item, dict):
++        return None
++
++    vehicles = []
++    for n in (1, 2):
++        eta_min = _int_or_none(item.get(f'predictTime{n}'))
++        eta_sec = _int_or_none(item.get(f'predictTimeSec{n}'))
++        if eta_sec is None and eta_min is not None:
++            eta_sec = eta_min * 60
++        if eta_min is None and eta_sec is not None:
++            eta_min = max(0, round(eta_sec / 60))
++        if eta_min is None and eta_sec is None:
++            continue
++        seats = _int_or_none(item.get(f'remainSeatCnt{n}'))
++        vehicles.append({
++            'order': n,
++            'etaMin': eta_min,
++            'etaSec': eta_sec,
++            'stopsAway': _int_or_none(item.get(f'locationNo{n}')),
++            'plateNo': str(item.get(f'plateNo{n}') or ''),
++            'vehicleId': str(item.get(f'vehId{n}') or ''),
++            'currentStation': str(item.get(f'stationNm{n}') or ''),
++            'remainSeats': seats if seats is not None and seats >= 0 else None,
++            'lowPlateCode': _int_or_none(item.get(f'lowPlate{n}')),
++        })
++    return {
++        'routeId': str(item.get('routeId') or route_id),
++        'routeName': str(item.get('routeName') or ''),
++        'stationId': str(item.get('stationId') or station_id),
++        'staOrder': _int_or_none(item.get('staOrder')) or _int_or_none(sta_order),
++        'routeDestination': str(item.get('routeDestName') or ''),
++        'flag': str(item.get('flag') or ''),
++        'queryTime': str(find_recursive(data, 'queryTime') or ''),
++        'vehicles': vehicles,
++    }
++
++
++def attach_live_bus_arrivals(candidates: list[dict], deadline_sec: int | None = None, max_calls: int = 6):
++    """Attach realtime arrivals without letting a current bus distort a far-future arrive-by plan."""
++    now = datetime.now(ZoneInfo('Asia/Seoul'))
++    now_sec = now.hour * 3600 + now.minute * 60 + now.second
++    calls = 0
++    cache = {}
++    for c in candidates:
++        rid = str(c.get('routeId') or '').strip()
++        sid = str(c.get('originStationId') or (c.get('accessStop') or {}).get('id') or '').strip()
++        seq = c.get('originSeq') or c.get('staOrder')
++        key = (rid, sid, str(seq or ''))
++        if not rid or not sid or not seq:
++            continue
++        if key not in cache:
++            if calls >= max_calls:
++                continue
++            try:
++                cache[key] = live_bus_arrival(rid, sid, seq)
++            except Exception as exc:
++                cache[key] = {'error': str(exc), 'vehicles': []}
++            calls += 1
++        live = cache.get(key)
++        c['liveArrival'] = live
++        if not live or live.get('error') or not live.get('vehicles'):
++            continue
++
++        planned = _int_or_none(c.get('recommendedBoardingSec') or c.get('latestBoardingSec'))
++        if planned is not None:
++            planned_abs = planned
++            while planned_abs < now_sec - 3600:
++                planned_abs += 86400
++            c['liveRelevant'] = -600 <= (planned_abs - now_sec) <= 7200
++        else:
++            c['liveRelevant'] = True
++
++        first = live['vehicles'][0]
++        eta_sec = _int_or_none(first.get('etaSec'))
++        travel_min = float(c.get('travelMedianMin') or c.get('busMinutesEstimate') or 0)
++        if eta_sec is not None and deadline_sec is not None and c.get('liveRelevant'):
++            deadline_abs = int(deadline_sec)
++            while deadline_abs < now_sec - 3600:
++                deadline_abs += 86400
++            transfer_arrival_abs = now_sec + eta_sec + int(travel_min * 60)
++            c['liveCanCatchRail'] = transfer_arrival_abs <= deadline_abs
++            c['liveEstimatedTransferArrival'] = db_sec_to_hm(transfer_arrival_abs, True)
++    return {'checkedAt': now.strftime('%H:%M:%S'), 'calls': calls, 'candidates': candidates}
++
++
+ def watch_routes_serving_station(station_id: str, priority: int = 80, source: str = "planner-station"):
+     sid = str(station_id or "").strip()
+     if not sid:
+@@ -496,6 +614,7 @@
+                 'historyAvailable': False,
+                 'source': 'route-structure',
+                 'originStationId': origin_station_id,
++                'originSeq': oseq,
+                 'transferBusStationId': str(stop.get('stationId') or ''),
+                 'transferBusStationName': str(stop.get('stationName') or ''),
+                 'busStops': stops,
+@@ -610,12 +729,22 @@
+             h['source'] = 'historical-arrivals'
+             buses.append(h)
+ 
++    live_meta = attach_live_bus_arrivals(buses, deadline, 4)
++    buses = live_meta['candidates']
+     buses.sort(key=lambda x: (
+         not x.get('historyAvailable', False),
+         float(x.get('score', 999)),
+         -int(x.get('recommendedBoardingSec') or 0),
+     ))
+     recommended = buses[0] if buses else None
++
++    live_recommended = None
++    live_eligible = [x for x in buses if x.get('liveRelevant') and x.get('liveCanCatchRail') and (x.get('liveArrival') or {}).get('vehicles')]
++    if live_eligible:
++        live_recommended = min(live_eligible, key=lambda x: (
++            int(((x.get('liveArrival') or {}).get('vehicles') or [{}])[0].get('etaSec') or 10**9),
++            float(x.get('score', 999)),
++        ))
+     final_arrival_sec = int(shin['arrivalSec'])
+     goal_slack = round((target_sec - final_arrival_sec) / 60, 1)
+     total_min = None
+@@ -644,9 +773,12 @@
+         'goalSlackMin': goal_slack,
+         'totalMinutesEstimate': total_min,
+         'busHistoryReady': any(x.get('historyAvailable') for x in buses),
++        'realtimeCheckedAt': live_meta.get('checkedAt'),
++        'realtimeCalls': live_meta.get('calls', 0),
++        'realtimeRecommendedBus': live_recommended,
+         'watchRoutesAdded': watched.get('count', 0),
+         'gpsNearbyStops': gps_nearby,
+-        'plannerNote': '철도는 실제 시간표를 역산하고, 버스는 과거 이력이 있으면 시간대별 이력·없으면 노선 구조와 배차간격으로 마지막 탑승 가능 시각을 계산합니다.',
++        'plannerNote': '철도는 시간표를 역산하고, 버스는 과거 이력/노선 구조에 더해 공식 경기도 실시간 도착정보를 조회합니다. 실시간 버스는 실제 탑승 권장시각이 가까울 때만 환승 가능 여부 판단에 반영합니다.',
+     }
+ 
+ 
