@@ -2,7 +2,8 @@
 set -euo pipefail
 
 APP="/home/ubuntu/transit-pwa"
-RAW="https://raw.githubusercontent.com/irotomokor-jpg/noramu-backtest/main/v3_patch"
+ASSET_COMMIT="3077072756a9482a72fdab67e0b26a9bd8671f49"
+RAW="https://raw.githubusercontent.com/irotomokor-jpg/noramu-backtest/$ASSET_COMMIT/v3_patch"
 TMP="$(mktemp -d /tmp/transit-v3.XXXXXX)"
 BACK="$(mktemp -d /tmp/transit-v3-backup.XXXXXX)"
 MARKER="$APP/.v3_upgrade_complete"
@@ -28,9 +29,23 @@ FILES=(
   frontend_index.html.patch
 )
 
-echo "[1/6] Downloading v3 patch set..."
-for f in "${FILES[@]}"; do curl -fLsS --retry 3 "$RAW/$f" -o "$TMP/$f"; done
+declare -A SHA256
+SHA256[backend_watchlist.py.patch]="a11dffb86cb1ce32226ce7ca9f708f9990a653a686cf564dae0ac18daecd7602"
+SHA256[backend_universal_collector.py.patch]="c10db058e0fad4c2ac2d3ff64a86a2a8834e329c249a6a6f6b0851c4829b05d9"
+SHA256[backend_app.py.patch]="3d1dd68bd063ee8e35c278823e3f1d043a5b689850f15d2538ea6c6ec823502a"
+SHA256[frontend_app.js.patch]="91ff1e91f840396b6474a7263e6c0bb3c16263bb612eebb08da6ced8c563248f"
+SHA256[frontend_index.html.patch]="6d5f5b9a1c163955466ef291df270d77d41035bf8c1506412d07f28b0c0ac7e3"
+SHA256[location_router.py]="f0e52ce8613a824f589efa4d0bf47d080497754228e8e6284483a240ca1af909"
+
+echo "[1/6] Downloading pinned v3 patch set..."
+for f in "${FILES[@]}"; do
+  curl -fLsS --retry 3 "$RAW/$f" -o "$TMP/$f"
+  ACTUAL="$(sha256sum "$TMP/$f" | awk '{print $1}')"
+  [[ "$ACTUAL" == "${SHA256[$f]}" ]] || { echo "ERROR: checksum mismatch for $f"; exit 10; }
+done
 curl -fLsS --retry 3 "$RAW/location_router.py" -o "$TMP/location_router.py"
+ACTUAL="$(sha256sum "$TMP/location_router.py" | awk '{print $1}')"
+[[ "$ACTUAL" == "${SHA256[location_router.py]}" ]] || { echo "ERROR: checksum mismatch for location_router.py"; exit 11; }
 
 echo "[2/6] Verifying patches against the installed v2 source..."
 cd "$APP"
@@ -59,7 +74,6 @@ set +e
 for f in "${FILES[@]}"; do patch --batch -p1 < "$TMP/$f" || { rollback; exit 2; }; done
 cp "$TMP/location_router.py" backend/location_router.py
 
-# These are optional because the Python code has the same defaults, but writing them makes the behavior explicit.
 grep -q '^COLLECTOR_AUTO_SEED_ROUTE_NAMES=' .env || printf '\nCOLLECTOR_AUTO_SEED_ROUTE_NAMES=46,720,700-2,1007\n' >> .env
 grep -q '^COLLECTOR_AUTO_SEED_STATION_IDS=' .env || printf 'COLLECTOR_AUTO_SEED_STATION_IDS=233000945,201000023\n' >> .env
 chmod 600 .env
