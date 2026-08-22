@@ -1,0 +1,38 @@
+const $ = s => document.querySelector(s);
+
+const I18N={
+  ko:{
+    appTitle:"몇 시에 나가?",appSubtitle:"버스+지하철을 실제 환승 순서로 역산합니다. GPS 주변 정류장도 자동 비교합니다.",
+    modeReverse:"도착시간",modeForward:"출발시간",modeFirst:"첫차",modeLast:"막차",origin:"출발",destination:"도착",
+    currentLocationButton:"◎ 현재 위치",currentLocation:"현재 위치",originPlaceholder:"출발 예시) 판교역",destinationPlaceholder:"도착 예시) 서울역",
+    notSelected:"선택 안 됨",arriveTimeLabel:"도착해야 하는 시간",departTimeLabel:"출발할 시간",now:"지금",
+    planReverse:"몇 시에 나가야 해?",planForward:"도착시간 계산",planFirst:"첫차 경로 찾기",planLast:"막차 경로 찾기",
+    resultReverse:"도착시간 역산",resultForward:"출발시간 기준",resultFirst:"첫차 기준",resultLast:"막차 기준",
+    adArea:"광고 영역",adSub:"핵심 결과 확인 후 노출",dataStatus:"데이터 수집 상태",metadataTitle:"전체 메타데이터",
+    watchTitle:"실운행 Watchlist",watchDesc:"조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.",historyTitle:"과거 이력",checking:"확인 중…",
+    bus:"버스",subway:"지하철",gps:"GPS",noResults:"검색 결과 없음",loading:"계산 중…",calcFailed:"계산 실패",
+    selectBoth:"출발지와 도착지는 검색 결과에서 각각 하나씩 선택해줘.",secureGps:"현재 위치는 HTTPS에서만 사용할 수 있습니다. HTTPS 주소로 접속한 뒤 다시 눌러주세요.",
+    noGeo:"이 브라우저는 위치 기능을 지원하지 않습니다.",gpsChecking:"위치 확인 중…",gpsDenied:"위치 권한이 거부됐습니다. 브라우저 사이트 권한에서 위치를 허용해 주세요.",gpsTimeout:"GPS 확인 시간이 초과됐습니다. 다시 시도해 주세요.",gpsFail:"현재 위치를 확인할 수 없습니다.",
+    walk:"도보",rail1:"1차 철도",rail2:"2차 철도",arrival:"도착",shin:"신분당선",suin:"수인분당선",
+    live:"실시간",minutesLater:"{n}분 후",stopsAway:"{n}정거장 전",seats:"{n}석",noVehicle:"현재 도착예정 차량 없음",canCatch:"이 차량으로 목표 열차 연결 가능",cannotCatch:"이 차량은 목표 열차 연결이 빠듯/불가",farRealtime:"계획 탑승시각과 멀어 현재 실시간은 참고용",direction:"{name} 방면",
+    routeStructure:"구조 예상",minutes:"약 {n}분",stations:"{n}개 역",busStops:"{n}정거장",timetablePending:"시간표 DB 미적재 구간은 구조 예상",
+    leaveCurrent:"현재 위치에서 출발",walkTo:"{name}까지 도보",arriveBySummary:"{target}까지 도착 기준으로 뒤에서부터 역산했습니다.",
+    recommendedLeave:"권장 출발",finalArrival:"최종 도착",totalAbout:"총 약",slack:"{n}분 여유",late:"{n}분 초과",
+    busCandidates:"와우지구 버스 후보 · 실시간 포함",noBusCandidate:"고색역으로 연결되는 버스 후보를 아직 찾지 못했습니다.",
+    liveTakeNow:"지금 타야 할 버스",targetConnection:"목표 열차 연결 가능",genericSummary:"출발지와 목적지 방향을 그대로 유지해 전체 구간을 순서대로 표시합니다. GPS 목적지는 주변 정류장 여러 곳을 비교한 뒤 마지막 도보까지 포함합니다.",
+    genericNote:"현재 범용 경로는 노선 구조 기반 예상입니다.",noRoute:"경로 후보 없음",arrived:"{name} 도착",fromOrigin:"출발지: {name}",wholeEstimate:"전체 구조 예상 약 {n}분",
+    walkFromTo:"{from} → {to}",afterAlightWalk:"하차 후 도보 약 {n}분",busRide:"{route}번 탑승",busEstimate:"버스 구조 예상 약 {n}분",
+    currentToStop:"현재 위치 → {name}",subwayRide:"{from}역 → {to}역",subwayTo:"{to}역까지 지하철",
+    langChanged:"언어가 변경되었습니다. 현재 결과는 다시 계산하면 선택한 언어로 표시됩니다."
+  },
+  ja:{
+    appTitle:"何時に出ればいい？",appSubtitle:"バス＋地下鉄を実際の乗り換え順で逆算します。GPS周辺の停留所も自動比較します。",
+    modeReverse:"到着時刻",modeForward:"出発時刻",modeFirst:"始発",modeLast:"終電",origin:"出発",destination:"到着",
+    currentLocationButton:"◎ 現在地",currentLocation:"現在地",originPlaceholder:"出発例）パンギョ駅",destinationPlaceholder:"到着例）ソウル駅",
+    notSelected:"未選択",arriveTimeLabel:"到着希望時刻",departTimeLabel:"出発時刻",now:"今",
+    planReverse:"何時に出ればいい？",planForward:"到着時刻を計算",planFirst:"始発ルートを検索",planLast:"終電ルートを検索",
+    resultReverse:"到着時刻から逆算",resultForward:"出発時刻基準",resultFirst:"始発基準",resultLast:"終電基準",
+    adArea:"広告エリア",adSub:"主要結果の後に表示",dataStatus:"データ収集状況",metadataTitle:"全メタデータ",
+    watchTitle:"運行 Watchlist",watchDesc:"主要路線を自動収集し、GPS周辺・検索経路の路線も追加学習します。API上限内で継続観測します。",historyTitle:"過去履歴",checking:"確認中…",
+    bus:"バス",subway:"地下鉄",gps:"GPS",noResults:"検索結果なし",loading:"計算中…",calcFailed:"計算失敗",
+    selectBoth:"出発地と到着地を検索結果から1つずつ選択してください。",secureGps:"現在地はHTTPSでのみ利用できます。HTTPSのURLから開いてください。",
