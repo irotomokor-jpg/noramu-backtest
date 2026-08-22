@@ -1,0 +1,53 @@
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -1,5 +1,89 @@
+ const $ = s => document.querySelector(s);
+ 
++const I18N={
++  ko:{
++    appTitle:"몇 시에 나가?",appSubtitle:"버스+지하철을 실제 환승 순서로 역산합니다. GPS 주변 정류장도 자동 비교합니다.",
++    modeReverse:"도착시간",modeForward:"출발시간",modeFirst:"첫차",modeLast:"막차",origin:"출발",destination:"도착",
++    currentLocationButton:"◎ 현재 위치",currentLocation:"현재 위치",originPlaceholder:"출발 예시) 판교역",destinationPlaceholder:"도착 예시) 서울역",
++    notSelected:"선택 안 됨",arriveTimeLabel:"도착해야 하는 시간",departTimeLabel:"출발할 시간",now:"지금",
++    planReverse:"몇 시에 나가야 해?",planForward:"도착시간 계산",planFirst:"첫차 경로 찾기",planLast:"막차 경로 찾기",
++    resultReverse:"도착시간 역산",resultForward:"출발시간 기준",resultFirst:"첫차 기준",resultLast:"막차 기준",
++    adArea:"광고 영역",adSub:"핵심 결과 확인 후 노출",dataStatus:"데이터 수집 상태",metadataTitle:"전체 메타데이터",
++    watchTitle:"실운행 Watchlist",watchDesc:"조회 없이도 핵심 노선/정류장을 자동 수집하고, GPS 주변·검색 경로 노선을 추가로 학습합니다. API 안전한도 안에서 반복 관측합니다.",historyTitle:"과거 이력",checking:"확인 중…",
++    bus:"버스",subway:"지하철",gps:"GPS",noResults:"검색 결과 없음",loading:"계산 중…",calcFailed:"계산 실패",
++    selectBoth:"출발지와 도착지는 검색 결과에서 각각 하나씩 선택해줘.",secureGps:"현재 위치는 HTTPS에서만 사용할 수 있습니다. HTTPS 주소로 접속한 뒤 다시 눌러주세요.",
++    noGeo:"이 브라우저는 위치 기능을 지원하지 않습니다.",gpsChecking:"위치 확인 중…",gpsDenied:"위치 권한이 거부됐습니다. 브라우저 사이트 권한에서 위치를 허용해 주세요.",gpsTimeout:"GPS 확인 시간이 초과됐습니다. 다시 시도해 주세요.",gpsFail:"현재 위치를 확인할 수 없습니다.",
++    walk:"도보",rail1:"1차 철도",rail2:"2차 철도",arrival:"도착",shin:"신분당선",suin:"수인분당선",
++    live:"실시간",minutesLater:"{n}분 후",stopsAway:"{n}정거장 전",seats:"{n}석",noVehicle:"현재 도착예정 차량 없음",canCatch:"이 차량으로 목표 열차 연결 가능",cannotCatch:"이 차량은 목표 열차 연결이 빠듯/불가",farRealtime:"계획 탑승시각과 멀어 현재 실시간은 참고용",direction:"{name} 방면",
++    routeStructure:"구조 예상",minutes:"약 {n}분",stations:"{n}개 역",busStops:"{n}정거장",timetablePending:"시간표 DB 미적재 구간은 구조 예상",
++    leaveCurrent:"현재 위치에서 출발",walkTo:"{name}까지 도보",arriveBySummary:"{target}까지 도착 기준으로 뒤에서부터 역산했습니다.",
++    recommendedLeave:"권장 출발",finalArrival:"최종 도착",totalAbout:"총 약",slack:"{n}분 여유",late:"{n}분 초과",
++    busCandidates:"와우지구 버스 후보 · 실시간 포함",noBusCandidate:"고색역으로 연결되는 버스 후보를 아직 찾지 못했습니다.",
++    liveTakeNow:"지금 타야 할 버스",targetConnection:"목표 열차 연결 가능",genericSummary:"출발지와 목적지 방향을 그대로 유지해 전체 구간을 순서대로 표시합니다. GPS 목적지는 주변 정류장 여러 곳을 비교한 뒤 마지막 도보까지 포함합니다.",
++    genericNote:"현재 범용 경로는 노선 구조 기반 예상입니다.",noRoute:"경로 후보 없음",arrived:"{name} 도착",fromOrigin:"출발지: {name}",wholeEstimate:"전체 구조 예상 약 {n}분",
++    walkFromTo:"{from} → {to}",afterAlightWalk:"하차 후 도보 약 {n}분",busRide:"{route}번 탑승",busEstimate:"버스 구조 예상 약 {n}분",
++    currentToStop:"현재 위치 → {name}",subwayRide:"{from}역 → {to}역",subwayTo:"{to}역까지 지하철",
++    langChanged:"언어가 변경되었습니다. 현재 결과는 다시 계산하면 선택한 언어로 표시됩니다."
++  },
++  ja:{
++    appTitle:"何時に出ればいい？",appSubtitle:"バス＋地下鉄を実際の乗り換え順で逆算します。GPS周辺の停留所も自動比較します。",
++    modeReverse:"到着時刻",modeForward:"出発時刻",modeFirst:"始発",modeLast:"終電",origin:"出発",destination:"到着",
++    currentLocationButton:"◎ 現在地",currentLocation:"現在地",originPlaceholder:"出発例）パンギョ駅",destinationPlaceholder:"到着例）ソウル駅",
++    notSelected:"未選択",arriveTimeLabel:"到着希望時刻",departTimeLabel:"出発時刻",now:"今",
++    planReverse:"何時に出ればいい？",planForward:"到着時刻を計算",planFirst:"始発ルートを検索",planLast:"終電ルートを検索",
++    resultReverse:"到着時刻から逆算",resultForward:"出発時刻基準",resultFirst:"始発基準",resultLast:"終電基準",
++    adArea:"広告エリア",adSub:"主要結果の後に表示",dataStatus:"データ収集状況",metadataTitle:"全メタデータ",
++    watchTitle:"運行 Watchlist",watchDesc:"主要路線を自動収集し、GPS周辺・検索経路の路線も追加学習します。API上限内で継続観測します。",historyTitle:"過去履歴",checking:"確認中…",
++    bus:"バス",subway:"地下鉄",gps:"GPS",noResults:"検索結果なし",loading:"計算中…",calcFailed:"計算失敗",
++    selectBoth:"出発地と到着地を検索結果から1つずつ選択してください。",secureGps:"現在地はHTTPSでのみ利用できます。HTTPSのURLから開いてください。",
++    noGeo:"このブラウザは位置情報に対応していません。",gpsChecking:"位置確認中…",gpsDenied:"位置情報の権限が拒否されています。サイト設定で位置情報を許可してください。",gpsTimeout:"GPSの確認がタイムアウトしました。もう一度お試しください。",gpsFail:"現在地を取得できません。",
++    walk:"徒歩",rail1:"鉄道1",rail2:"鉄道2",arrival:"到着",shin:"新盆唐線",suin:"水仁・盆唐線",
++    live:"リアルタイム",minutesLater:"{n}分後",stopsAway:"{n}停留所前",seats:"残席{n}",noVehicle:"到着予定車両なし",canCatch:"このバスで目標列車に接続可能",cannotCatch:"このバスでは目標列車への接続が厳しい可能性",farRealtime:"予定乗車時刻から遠いため現在のリアルタイム情報は参考値",direction:"{name}方面",
++    routeStructure:"構造推定",minutes:"約{n}分",stations:"{n}駅",busStops:"{n}停留所",timetablePending:"時刻表DB未登録区間は構造推定",
++    leaveCurrent:"現在地を出発",walkTo:"{name}まで徒歩",arriveBySummary:"{target}到着に合わせて後ろから逆算しました。",
++    recommendedLeave:"推奨出発",finalArrival:"最終到着",totalAbout:"合計 約",slack:"{n}分余裕",late:"{n}分超過",
++    busCandidates:"ワウ地区のバス候補・リアルタイム",noBusCandidate:"コセク駅へ接続するバス候補がまだ見つかりません。",
++    liveTakeNow:"今乗るべきバス",targetConnection:"目標列車に接続可能",genericSummary:"出発地から目的地まで実際の移動順で表示します。GPS目的地では周辺停留所を比較し、最後の徒歩も含めます。",
++    genericNote:"現在の汎用経路は路線構造ベースの推定です。",noRoute:"経路候補なし",arrived:"{name} 到着",fromOrigin:"出発地: {name}",wholeEstimate:"全体構造推定 約{n}分",
++    walkFromTo:"{from} → {to}",afterAlightWalk:"降車後 徒歩約{n}分",busRide:"{route}番 乗車",busEstimate:"バス構造推定 約{n}分",
++    currentToStop:"現在地 → {name}",subwayRide:"{from}駅 → {to}駅",subwayTo:"{to}駅まで地下鉄",
++
