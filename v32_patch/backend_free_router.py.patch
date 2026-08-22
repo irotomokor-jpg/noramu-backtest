@@ -1,0 +1,22 @@
+--- a/backend/free_router.py
++++ b/backend/free_router.py
+@@ -77,7 +77,8 @@
+     compact = s.replace(" ", "")
+     for line, names in LINES.items():
+         for name in names:
+-            if f"{name}역" in compact or compact.startswith(name):
++            # Do not treat arbitrary prefixes as subway stations. Example: 수원대학교 must not map to 수원역.
++            if f"{name}역" in compact or compact == name:
+                 out.append(name)
+     seen = set()
+     return [x for x in out if not (x in seen or seen.add(x))]
+@@ -327,6 +328,9 @@
+             for origin_seq in origin_orders:
+                 downstream = [r for r in rows if self._seq(r) > origin_seq]
+                 for stop in downstream:
++                    # A loop can revisit a same-named stop later in the route. Do not present that as useful progress.
++                    if norm_name(stop.get("stationName", "")) == norm_name(origin_name):
++                        continue
+                     aliases = station_alias_candidates(stop.get("stationName",""))
+                     for transfer in aliases:
+                         if transfer not in SUBWAY_GRAPH:
